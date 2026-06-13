@@ -15,16 +15,19 @@ const envSchema = z.object({
   WIX_WEBHOOK_PUBLIC_KEY:  z.string().min(1),
   WIX_TOKENS_MASTER_KEY:   z.string().length(64),
 
-  // Cloudflare R2
-  R2_ACCOUNT_ID:        z.string().min(1),
-  R2_ACCESS_KEY_ID:     z.string().min(1),
-  R2_SECRET_ACCESS_KEY: z.string().min(1),
-  R2_BUCKET:            z.string().min(1),
-  R2_PUBLIC_BASE_URL:   z.string().url(),
+  // Cloudflare R2 (optional until R2 billing is activated)
+  R2_ACCOUNT_ID:        z.string().min(1).optional(),
+  R2_ACCESS_KEY_ID:     z.string().min(1).optional(),
+  R2_SECRET_ACCESS_KEY: z.string().min(1).optional(),
+  R2_BUCKET:            z.string().min(1).optional(),
+  R2_PUBLIC_BASE_URL:   z.string().url().optional(),
 
   // Email
   RESEND_API_KEY:      z.string().min(1),
   RESEND_FROM_ADDRESS: z.string().email(),
+
+  // Cron
+  CRON_SECRET: z.string().min(16),
 
   // SMS (optional for v1)
   TWILIO_ACCOUNT_SID:  z.string().min(1).optional(),
