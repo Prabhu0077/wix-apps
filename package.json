@@ -1,0 +1,25 @@
+{
+  "name": "wix-apps",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Portfolio of Wix App Market apps.",
+  "packageManager": "pnpm@9.0.0",
+  "scripts": {
+    "build": "turbo build",
+    "dev": "turbo dev",
+    "lint": "turbo lint",
+    "test": "turbo test",
+    "typecheck": "turbo typecheck",
+    "fmt": "prettier --write \"**/*.{ts,tsx,js,jsx,md,json,yml,yaml}\"",
+    "sync-docs": "pwsh -File ./scripts/sync-docs.ps1"
+  },
+  "devDependencies": {
+    "prettier": "^3.3.0",
+    "turbo": "^2.0.0",
+    "typescript": "^5.5.0"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  }
+}

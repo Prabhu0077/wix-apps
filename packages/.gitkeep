@@ -1,0 +1,2 @@
+# Intentionally empty. Shared packages get extracted here ONLY when app #2 forces it.
+# See AGENTS.md §3 (Architecture Rules) for the extraction trigger rule.

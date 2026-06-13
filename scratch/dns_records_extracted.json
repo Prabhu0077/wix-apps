@@ -1,0 +1,74 @@
+[
+  [
+    "Name",
+    "Type",
+    "Content",
+    "TTL",
+    "Priority",
+    "Status"
+  ],
+  [
+    "resend._domainkey",
+    "TXT",
+    "p=MIGfMA0GCSqG[\u2026]SIb3DQEBAQUAA4GNADCBiQKBgQC0eBQW3PlkgEPy8hgcDSJ74jVY9WempJVvG2bhIaDQIobXL0Sjad1e5c1/CnIJpP/ANZRkfxnhjSRJXo5fz9yoIQWLnHlOL5V8XGmZvNSPip54iaLxmwqeka1E5q6LmSA+D9aQUV+0d3PD8aQtierZWZ8CqG2Tro4t2H41UUVjLQIDAQAB",
+    "Auto",
+    "",
+    "Not Started"
+  ],
+  [
+    "Name",
+    "Type",
+    "Content",
+    "TTL",
+    "Priority",
+    "Status"
+  ],
+  [
+    "send",
+    "MX",
+    "feedback-smtp.[\u2026]ap-northeast-1.amazonses.com",
+    "60",
+    "10",
+    "Not Started"
+  ],
+  [
+    "send",
+    "TXT",
+    "v=spf1 include[\u2026]:amazonses.com ~all",
+    "60",
+    "",
+    "Not Started"
+  ],
+  [
+    "Type",
+    "Name",
+    "Content",
+    "TTL",
+    "Priority",
+    "Status"
+  ],
+  [
+    "TXT",
+    "_dmarc",
+    "v=DMARC1; p=none;",
+    "Auto",
+    "",
+    ""
+  ],
+  [
+    "Name",
+    "Type",
+    "Content",
+    "TTL",
+    "Priority",
+    "Status"
+  ],
+  [
+    "@",
+    "MX",
+    "inbound-smtp.a[\u2026]p-northeast-1.amazonaws.com",
+    "60",
+    "10",
+    "not started"
+  ]
+]

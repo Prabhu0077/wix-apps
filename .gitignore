@@ -1,0 +1,47 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build output
+.next/
+.turbo/
+dist/
+out/
+build/
+
+# env / secrets
+.env
+.env.local
+.env.*.local
+
+# logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# test / coverage
+coverage/
+*.lcov
+
+# Office lock files
+~$*.docx
+~$*.xlsx
+~$*.pptx
+
+# Drizzle generated migrations are committed; keep only this exclusion
+drizzle/.snapshot/
+
+# local mirror outputs (if generated under repo)
+.docs-mirror/
