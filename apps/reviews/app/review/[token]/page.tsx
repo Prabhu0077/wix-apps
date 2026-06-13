@@ -2,6 +2,9 @@
 
 // Public review submission page. No auth required — token proves legitimacy.
 // Customers land here from the email link.
+//
+// MEDIA UPLOAD: disabled for v1 (R2 not yet configured).
+// To re-enable: uncomment the MEDIA UPLOAD sections below and set R2 env vars.
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
@@ -19,13 +22,6 @@ interface ReviewContext {
   status: string;
 }
 
-type UploadFile = {
-  file: File;
-  key?: string;
-  progress: number;
-  error?: string;
-};
-
 export default function ReviewPage() {
   const params = useParams<{ token: string }>();
   const token = params.token;
@@ -37,7 +33,6 @@ export default function ReviewPage() {
   const [hoverRating, setHoverRating] = useState(0);
   const [customerName, setCustomerName] = useState("");
   const [body, setBody] = useState("");
-  const [uploads, setUploads] = useState<UploadFile[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -54,43 +49,6 @@ export default function ReviewPage() {
       .catch(() => setLoadError("Failed to load review details. Please try again."));
   }, [token]);
 
-  async function uploadFile(uf: UploadFile, index: number): Promise<string | null> {
-    try {
-      // 1. Get pre-signed URL
-      const sigRes = await fetch("/api/public/review/upload-signature", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          token,
-          fileName: uf.file.name,
-          contentType: uf.file.type,
-          sizeBytes: uf.file.size,
-        }),
-      });
-      if (!sigRes.ok) throw new Error("Could not get upload URL");
-      const { uploadUrl, key } = await sigRes.json();
-
-      // 2. PUT to R2
-      await fetch(uploadUrl, {
-        method: "PUT",
-        headers: { "Content-Type": uf.file.type },
-        body: uf.file,
-      });
-
-      setUploads((prev) =>
-        prev.map((u, i) => (i === index ? { ...u, key, progress: 100 } : u)),
-      );
-      return key;
-    } catch (err) {
-      setUploads((prev) =>
-        prev.map((u, i) =>
-          i === index ? { ...u, error: "Upload failed", progress: 0 } : u,
-        ),
-      );
-      return null;
-    }
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (rating === 0) { setSubmitError("Please select a star rating."); return; }
@@ -100,23 +58,10 @@ export default function ReviewPage() {
     setSubmitting(true);
     setSubmitError(null);
 
-    // Upload any attached files
-    const mediaKeys: string[] = [];
-    for (let i = 0; i < uploads.length; i++) {
-      const uf = uploads[i];
-      if (!uf.key) {
-        const key = await uploadFile(uf, i);
-        if (key) mediaKeys.push(key);
-      } else {
-        mediaKeys.push(uf.key);
-      }
-    }
-
-    // Submit the review
     const res = await fetch(`/api/public/review/${token}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ rating, body, customerName, mediaKeys }),
+      body: JSON.stringify({ rating, body, customerName, mediaKeys: [] }),
     });
 
     if (res.ok) {
@@ -126,13 +71,6 @@ export default function ReviewPage() {
       setSubmitError(data.detail ?? "Submission failed. Please try again.");
       setSubmitting(false);
     }
-  }
-
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files ?? []);
-    const newUploads: UploadFile[] = files.map((f) => ({ file: f, progress: 0 }));
-    setUploads((prev) => [...prev, ...newUploads].slice(0, 6));
-    e.target.value = "";
   }
 
   // ── Render states ──────────────────────────────────────────────────────────
@@ -240,7 +178,7 @@ export default function ReviewPage() {
           </div>
 
           {/* Review body */}
-          <div style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 24 }}>
             <label style={styles.label} htmlFor="reviewBody">Your Review *</label>
             <textarea
               id="reviewBody"
@@ -256,41 +194,11 @@ export default function ReviewPage() {
             </p>
           </div>
 
-          {/* Media upload */}
-          <div style={{ marginBottom: 24 }}>
-            <label style={styles.label}>Photos / Video (optional, up to 6 files)</label>
-            <label style={styles.fileButton}>
-              + Add Photos or Video
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm"
-                multiple
-                style={{ display: "none" }}
-                onChange={handleFileChange}
-                disabled={uploads.length >= 6}
-              />
-            </label>
-            {uploads.length > 0 && (
-              <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap" as const, gap: 8 }}>
-                {uploads.map((uf, i) => (
-                  <div key={i} style={styles.uploadChip}>
-                    <span style={{ fontSize: 12, maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
-                      {uf.file.name}
-                    </span>
-                    {uf.error && <span style={{ color: "#ef4444", fontSize: 11 }}> ✗</span>}
-                    {uf.progress === 100 && <span style={{ color: "#22c55e", fontSize: 11 }}> ✓</span>}
-                    <button
-                      type="button"
-                      onClick={() => setUploads((prev) => prev.filter((_, j) => j !== i))}
-                      style={{ background: "none", border: "none", cursor: "pointer", color: "#888", padding: "0 0 0 4px" }}
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          {/* MEDIA UPLOAD — disabled for v1. To re-enable:
+              1. Activate Cloudflare R2 billing
+              2. Run scratch/create_cf_resources.py and fill R2 vars in .env.local
+              3. Uncomment the upload UI and the UploadFile logic above
+          */}
 
           {submitError && <p style={styles.errorMsg}>{submitError}</p>}
 
@@ -366,25 +274,6 @@ const styles = {
     objectFit: "cover" as const,
     borderRadius: 6,
     border: "1px solid #e5e7eb",
-  },
-  fileButton: {
-    display: "inline-block",
-    marginTop: 8,
-    padding: "8px 16px",
-    border: "1px dashed #d1d5db",
-    borderRadius: 6,
-    fontSize: 14,
-    color: "#6b7280",
-    cursor: "pointer",
-  },
-  uploadChip: {
-    display: "flex",
-    alignItems: "center" as const,
-    gap: 4,
-    padding: "4px 8px",
-    backgroundColor: "#f3f4f6",
-    borderRadius: 4,
-    fontSize: 12,
   },
   submitBtn: {
     width: "100%",
