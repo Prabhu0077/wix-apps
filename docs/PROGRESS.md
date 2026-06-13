@@ -1,91 +1,81 @@
 # Progress & Action Plan — Wix Reviews App
 
-This document tracks completed tasks, the current state of our infrastructure, and detailed suggestions for what to build next and why.
+_Last updated: 2026-06-13_
 
 ---
 
-## 🚀 What We Have Done So Far
+## ✅ Done
 
-We have laid down a secure, scalable foundation for the Wix Reviews App (`apps/reviews/`) following the Week 1 and Week 2 milestones.
-
-### 1. Database & Token Encryption (Week 1–2)
-* **AES-256-GCM Cryptography**: Secured OAuth access/refresh tokens at rest using a 32-byte master key (`WIX_TOKENS_MASTER_KEY`).
-* **Schema & Migration**: Migrated Neon Postgres with encrypted credentials columns in the `accounts` table.
-* **Auto-Refreshing Wix Client**: Built `getWixClient` to automatically decrypt tokens, instantiate the Wix SDK client, and hook into credentials-refresh events to re-encrypt and persist tokens back to the DB.
-* **Tests**: Verified cryptography and database queries via automated integration test scripts (`scratch/test-crypto.js`).
-
-### 2. Webhook Order Fulfilled Processing Pipeline (Week 2)
-* **Background Processing**: Handled `wix.ecom.v1.order#fulfilled` webhook and integrated Next.js 15's native `after()` API to respond immediately to Wix in `< 10ms` while executing the payload in the background.
-* **Review Request Scheduling**: Fetches order items and customer data from Wix API, and inserts a scheduled review request record into the database (defaulting to 14 days out).
-* **Idempotency**: Prevents double-scheduling via database unique constraints on Wix Order IDs.
-* **Tests**: Successfully verified the end-to-end webhook-to-database pipeline (`scratch/test-integration.ts`).
-
-### 3. Transactional Email Migration: Postmark ➔ Resend
-* **Decision**: Swapped Postmark for Resend because Postmark does not accept domains without public registry registration (privacy-shielded domains).
-* **Domain Configuration**: Registered the custom domain `vibcoders.com` on Resend.
-* **Full DNS Records Extraction**: Captured the untruncated TXT, MX, and CNAME records required for Vercel and saved them in `scratch/dns_records_full.json`.
-* **API Keys & Codebase Integration**:
-  * Generated a production Resend API Key.
-  * Replaced `postmark` NPM package with `resend` in `apps/reviews/package.json`.
-  * Updated Next.js 15 configuration, environment validators (`apps/reviews/lib/env.ts`), `.env.example`, and `.env.local`.
-* **Build Verification**: Clean typecheck and successful optimized production compilation (`pnpm build`).
-
-### 4. Centralized Credentials Backup
-* Saved all current credentials securely inside the user's local directory: `C:\Users\prabh\.gemini\antigravity\credentials\wix_portfolio_credentials.json` (gitignored).
+| Area | Detail |
+|------|--------|
+| Git | `git init` + initial commit. Repo at `D:\wix`. |
+| Database | Neon Postgres live. Schema migrated (accounts, review_requests, reviews, review_media). AES-256-GCM token encryption. |
+| Wix OAuth | Install route (`/api/wix/install`) exchanges code, encrypts + stores tokens, upserts account row. |
+| Webhook pipeline | `/api/wix/webhook` verifies signature (dev-bypass for now), fans out events. `order#fulfilled` → schedules ReviewRequest in DB (14-day delay). Idempotent. |
+| Email | Switched from Postmark → Resend. `RESEND_API_KEY` live. Domain `vibcoders.com` registered on Resend. DNS records extracted to `scratch/dns_records_full.json`. |
+| Email cron | `/api/cron/send-requests` — picks SCHEDULED requests due now, sends via Resend, marks SENT. Runs every 5 min via `vercel.json`. |
+| Review submission | `GET /api/public/review/[token]` — resolves product names from Wix API. `POST` — inserts Review + optional media rows, marks request COMPLETED. |
+| Review page | `/review/[token]` — clean customer-facing form (stars, name, text). Media upload disabled for v1. |
+| R2 upload stub | `/api/public/review/upload-signature` built and tested — returns 503 until R2 is activated. Re-enable when ready. |
+| Credentials backup | `C:\Users\prabh\.wix-creds\wix_reviews_credentials.json` — all keys in one place, outside repo. |
 
 ---
 
-## ⚡ Current Status & Blocker
+## 🔴 Blockers (ordered by what unblocks the next thing)
 
-* **Cloudflare R2 Payment Activation**: We initiated Cloudflare R2 setup, extracted the Account ID (`317dee6de38fec1303a16f7070187a15`), and opened the billing page. R2 is free up to 10GB/mo but requires a credit card on file to activate.
-  * *Open page:* `https://dash.cloudflare.com/317dee6de38fec1303a16f7070187a15/r2/checkout/payment`
+### 1. Deploy to Vercel — YOU, ~20 min
 
----
+The app needs a live URL before Wix Dev Center will accept it.
 
-## 💡 Suggestions: What to Do Next & Why
-
-Here is the prioritized action plan for the next stages of development.
-
-```mermaid
-graph TD
-    A[User Activates Cloudflare R2] -->|Run automation script| B[Create R2 Bucket & API Tokens]
-    B -->|Save to .env.local| C[Configure apps/reviews/.env.local]
-    
-    D[Resend DNS Records Extracted] -->|Log in via Chrome| E[Configure Vercel DNS for vibcoders.com]
-    E -->|Verify Domain| F[Domain Ready in Resend]
-    
-    C --> G[Build Review Submission Page]
-    F --> H[Build Email Request Cron Job]
-    
-    G --> I[Week 3 MVP Milestone Complete]
-    H --> I
+```powershell
+# In D:\wix\apps\reviews
+npm i -g vercel   # if not already installed
+vercel            # follow prompts; link to your Vercel account
 ```
 
-### 1. Configure DNS on Vercel for `vibcoders.com`
-* **Why**: Resend requires these DNS records (TXT/MX/CNAME) to be active before it permits sending transactional emails from `@vibcoders.com`. Since `vibcoders.com` is hosted on Vercel, we can add them to Vercel's DNS panel.
-* **How**: We can automate navigating to Vercel in the active Chrome instance (using Google OAuth session already active) to add the extracted records.
+After deploy, copy the production URL (e.g. `https://reviews-xyz.vercel.app`).
 
-### 2. Complete R2 Bucket Creation & Token Provisioning
-* **Why**: The reviews widget needs a destination to upload customer photos and videos.
-* **How**: Once the billing details are submitted on the open Cloudflare page, run the automation script:
-  ```powershell
-  python scratch/create_cf_resources.py
-  ```
-  This will create the `wix-reviews-media` bucket, provision an edit-level API Token, and save the credentials. We then merge the credentials into `apps/reviews/.env.local`.
+Then add all env vars from `.env.local` to Vercel:
+- Go to Vercel dashboard → Project → Settings → Environment Variables
+- Add every key from `.env.local` (except the mock ones)
+- Set `NEXT_PUBLIC_APP_BASE_URL` to the production URL
 
-### 3. Implement Week 3 MVP Milestones: Email Sender & Public Submission Form
-* **Why**: Connects the scheduled `ReviewRequest` records in Postgres to Resend for sending, and allows customers to write reviews and upload media.
-* **Components to Build**:
-  1. **Review Request Cron (`/api/cron/send-requests`)**:
-     * Runs every 5–10 minutes.
-     * Queries the DB for scheduled requests that are due (`scheduled_for <= now() AND status = 'SCHEDULED'`).
-     * Renders a clean email template (React Email or standard HTML) and sends it via Resend.
-     * Updates the status of the request to `SENT` and records the timestamp.
-  2. **Review Upload Signature Endpoint (`/api/public/review/upload-signature`)**:
-     * Generates S3-compatible pre-signed URLs using `@aws-sdk/client-s3` pointing to Cloudflare R2.
-     * Ensures the client browser can upload images and videos directly to R2 without exposing root credentials or overloading our serverless Next.js functions.
-  3. **Review Submission Form Page (`/public/review/[token]`)**:
-     * Form accessible via the unique token from the email (no login required for buyers).
-     * Collects ratings (1-5 stars), text feedback, customer name/email.
-     * Uploads media (up to 5 photos, 1 video) directly to R2 using the pre-signed URL.
-     * Creates rows in the `reviews` and `review_media` tables, then marks the review request as `COMPLETED`.
+### 2. Wix Dev Center — YOU, ~60–90 min
+
+Needs the live Vercel URL from step 1.
+
+Follow `docs/02_wix_developer_center_setup.md`. Key things to collect and paste into `.env.local` + `C:\Users\prabh\.wix-creds\wix_reviews_credentials.json`:
+
+- `WIX_APP_SECRET` — from Dev Center app settings
+- `WIX_WEBHOOK_PUBLIC_KEY` — from the webhook config page
+
+Set these URLs in Dev Center:
+- **OAuth redirect URL**: `https://<your-vercel-url>/api/wix/install`
+- **Webhook endpoint**: `https://<your-vercel-url>/api/wix/webhook`
+- **Subscribe to events**: `wix.ecom.v1.order#fulfilled`, `wix.app-market.v1.app-instance#installed`
+
+### 3. Real JWT webhook verification — ME, ~15 min after you have the key
+
+Once `WIX_WEBHOOK_PUBLIC_KEY` is a real value (not the mock), I swap the dev-bypass in `lib/wix/webhooks.ts` for real `jose` signature verification. This is the security gate before launch.
+
+### 4. Resend DNS verification — YOU + ME, ~30 min
+
+DNS records for `vibcoders.com` need to be added to Vercel DNS so Resend can verify the domain. Records are in `scratch/dns_records_full.json`. Once the domain is live on Vercel, I can use the Vercel CLI to add them automatically.
+
+---
+
+## 💡 After the above — Week 4+ work
+
+| Feature | Why |
+|---------|-----|
+| Merchant dashboard (reviews list + approve/reject) | Merchants need to see and moderate reviews |
+| PDP widget (`widget/reviews-widget.js`) | Customers see reviews on product pages — the whole point |
+| Billing webhook handler | Without it, plan upgrades don't register |
+| End-to-end test install on a real Wix test site | Before App Market submission |
+| App Market listing assets (logo, screenshots, video) | Required for submission |
+
+---
+
+## 🗝️ Key credentials location
+
+`C:\Users\prabh\.wix-creds\wix_reviews_credentials.json` — master key file, gitignored, outside repo.
