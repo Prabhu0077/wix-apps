@@ -30,6 +30,7 @@ export const accounts = reviewsSchema.table("accounts", {
   wixRefreshToken: text("wix_refresh_token"),
   wixAccessToken:  text("wix_access_token"),
   wixTokenExpiresAt: timestamp("wix_token_expires_at"),
+  settings: jsonb("settings").$type<Record<string, unknown>>().default({}).notNull(),
 });
 
 export const subscriptions = reviewsSchema.table("subscriptions", {

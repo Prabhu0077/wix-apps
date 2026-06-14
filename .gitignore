@@ -45,3 +45,7 @@ drizzle/.snapshot/
 
 # local mirror outputs (if generated under repo)
 .docs-mirror/
+
+# scratch scripts and extracted credentials (never commit)
+scratch/
+shots/
