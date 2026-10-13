@@ -39,3 +39,12 @@ export function readSettings(stored: unknown): AppSettings {
   }
   return merged as AppSettings;
 }
+
+/**
+ * Store name for emails and shopper pages. Stored as `storeName` in the same
+ * jsonb (set at install, T1.4); not merchant-editable, so not in the schema.
+ */
+export function storeNameFrom(stored: unknown): string | null {
+  const v = (stored as Record<string, unknown> | null | undefined)?.storeName;
+  return typeof v === "string" && v.trim() ? v.trim() : null;
+}

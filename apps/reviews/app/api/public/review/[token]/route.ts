@@ -10,7 +10,7 @@ import { getProductSummaries, type ProductSummary } from "@/lib/wix/catalog";
 import { getWixClient } from "@/lib/wix/service";
 import { env } from "@/lib/env";
 import { REVIEW_LINK_DAYS } from "@/lib/product";
-import { readSettings } from "@/lib/settings";
+import { readSettings, storeNameFrom } from "@/lib/settings";
 
 function isExpired(createdAt: Date): boolean {
   return createdAt.getTime() < Date.now() - REVIEW_LINK_DAYS * 24 * 60 * 60 * 1000;
@@ -45,10 +45,7 @@ export async function GET(
   const account = await db.query.accounts.findFirst({
     where: eq(accounts.id, request.accountId),
   });
-  const storeName =
-    typeof (account?.settings as Record<string, unknown> | null)?.storeName === "string"
-      ? ((account!.settings as Record<string, unknown>).storeName as string)
-      : null;
+  const storeName = storeNameFrom(account?.settings);
 
   // Product names and images from Wix (Catalog V1 or V3). The form still
   // works with a generic label if Wix can't be reached.

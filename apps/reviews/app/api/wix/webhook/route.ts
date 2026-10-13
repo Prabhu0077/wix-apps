@@ -6,6 +6,7 @@ import { and, eq } from "drizzle-orm";
 
 import { db, accounts, reviewRequests } from "@/lib/db";
 import { readSettings } from "@/lib/settings";
+import { isSuppressed } from "@/lib/suppression";
 import { currentPlan, requestUsage } from "@/lib/usage";
 import { verifyWixWebhook, type WixEvent } from "@/lib/wix/webhooks";
 import { getWixClient } from "@/lib/wix/service";
@@ -84,6 +85,13 @@ async function handleOrderFulfilled(wixInstanceId: string, event: WixEvent) {
 
     if (!email || productIds.length === 0) {
       console.warn(`[webhook] order ${orderId}: missing email or products, skipping`);
+      return;
+    }
+
+    // The shopper unsubscribed from this store's review emails: don't ask again,
+    // and don't count it against the merchant's monthly limit.
+    if (await isSuppressed(account.id, email)) {
+      console.log(`[webhook] order ${orderId}: customer unsubscribed, not scheduling`);
       return;
     }
 

@@ -37,8 +37,8 @@ Read on 13 Oct 2026. These come before new features because several of them brea
 | B11 | Webhook signature check is real (`jose`) but bypasses on failure when `NODE_ENV` ≠ production | `lib/wix/webhooks.ts` | Any preview deploy with a wrong env accepts fake webhooks | T7.1 |
 | B12 | Install route is a stub; no uninstall handling or data deletion | `app/api/wix/install`, webhook `#removed` | GDPR 30-day deletion rule; app review | T7.3 |
 | B13 | `NODE_ENV=production` is set system-wide on the founder's PC, so `pnpm install` skips devDependencies | PC environment | `tsc`, `drizzle-kit`, `eslint` missing locally | Note in GOTCHAS |
-| B15 | Upload-signature route signs R2 uploads for **any** token string (never checks the review request exists or is open); 100 MB limit | `app/api/public/review/upload-signature/route.ts` | Anyone could fill our bucket once R2 is on | T2.4 (must fix before R2 activation) |
 | B14 | `pnpm-lock.yaml` was out of date with `package.json` (tailwind entries) | repo root | Clean installs fail with `--frozen-lockfile` | Commit the refreshed lockfile |
+| B15 | Upload-signature route signs R2 uploads for **any** token string (never checks the review request exists or is open); 100 MB limit | `app/api/public/review/upload-signature/route.ts` | Anyone could fill our bucket once R2 is on | T2.4 (must fix before R2 activation) |
 
 ---
 

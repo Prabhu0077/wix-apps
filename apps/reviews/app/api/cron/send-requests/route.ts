@@ -11,7 +11,8 @@ import { Resend } from "resend";
 import { db, accounts, reviewRequests } from "@/lib/db";
 import { env } from "@/lib/env";
 import { renderReviewRequestEmail } from "@/lib/email/review-request";
-import { readSettings } from "@/lib/settings";
+import { readSettings, storeNameFrom } from "@/lib/settings";
+import { isSuppressed } from "@/lib/suppression";
 import { getProductSummaries } from "@/lib/wix/catalog";
 import { getWixClient } from "@/lib/wix/service";
 
@@ -34,17 +35,25 @@ export async function GET(req: NextRequest) {
 
   let sent = 0;
   let failed = 0;
+  let skipped = 0;
 
   for (const request of due) {
     try {
       const account = await db.query.accounts.findFirst({ where: eq(accounts.id, request.accountId) });
       if (!account) throw new Error(`account ${request.accountId} not found`);
 
+      // The shopper may have unsubscribed after this request was scheduled.
+      if (await isSuppressed(account.id, request.customerEmail)) {
+        await db
+          .update(reviewRequests)
+          .set({ status: "SKIPPED", skipReason: "unsubscribed" })
+          .where(eq(reviewRequests.id, request.id));
+        skipped++;
+        continue;
+      }
+
       const settings = readSettings(account.settings);
-      const storeName =
-        typeof (account.settings as Record<string, unknown>)?.storeName === "string"
-          ? ((account.settings as Record<string, unknown>).storeName as string)
-          : settings.fromName;
+      const storeName = storeNameFrom(account.settings) ?? settings.fromName;
 
       // Product names are a nice-to-have; send even if Wix can't be reached.
       let productNames: string[] = [];
@@ -56,10 +65,13 @@ export async function GET(req: NextRequest) {
         console.warn(`[cron] product names unavailable for ${request.id}:`, wixErr);
       }
 
+      const base = env.NEXT_PUBLIC_APP_BASE_URL;
+      const unsubscribeUrl = `${base}/unsubscribe/${request.publicToken}`;
       const { subject, html, text } = renderReviewRequestEmail({
         storeName,
         productNames,
-        reviewUrl: `${env.NEXT_PUBLIC_APP_BASE_URL}/review/${request.publicToken}`,
+        reviewUrl: `${base}/review/${request.publicToken}`,
+        unsubscribeUrl,
       });
 
       const result = await resend.emails.send({
@@ -68,6 +80,12 @@ export async function GET(req: NextRequest) {
         subject,
         html,
         text,
+        // One-click unsubscribe from the mail app (RFC 8058; Gmail and Yahoo
+        // expect it from bulk senders). The POST needs no confirmation page.
+        headers: {
+          "List-Unsubscribe": `<${base}/api/public/unsubscribe/${request.publicToken}>`,
+          "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+        },
       });
       if (result.error) throw new Error(result.error.message);
 
@@ -92,5 +110,5 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ due: due.length, sent, failed });
+  return NextResponse.json({ due: due.length, sent, failed, skipped });
 }

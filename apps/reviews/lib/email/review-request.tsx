@@ -1,16 +1,18 @@
 // Review request email, sent on the store's behalf. It should read like a
 // note from the store: store name first, one clear button, plain wording
 // that doesn't steer the rating (FTC / UK DMCC: no sentiment-led asks).
+// Every email carries a working unsubscribe link (CAN-SPAM, UK PECR); the
+// sender also adds List-Unsubscribe headers for the mail app's own button.
 
 import { REVIEW_LINK_DAYS } from "@/lib/product";
 
-type Props = { storeName: string; productNames: string[]; reviewUrl: string };
+type Props = { storeName: string; productNames: string[]; reviewUrl: string; unsubscribeUrl: string };
 
 function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-export function renderReviewRequestEmail({ storeName, productNames, reviewUrl }: Props) {
+export function renderReviewRequestEmail({ storeName, productNames, reviewUrl, unsubscribeUrl }: Props) {
   const items =
     productNames.length === 1
       ? productNames[0]
@@ -28,6 +30,7 @@ export function renderReviewRequestEmail({ storeName, productNames, reviewUrl }:
     `Write a review: ${reviewUrl}`,
     ``,
     `This link works for ${REVIEW_LINK_DAYS} days. You got this email because you ordered from ${storeName}.`,
+    `Don't want review requests from ${storeName}? Unsubscribe: ${unsubscribeUrl}`,
   ].join("\n");
 
   const html = `<!DOCTYPE html>
@@ -46,7 +49,8 @@ export function renderReviewRequestEmail({ storeName, productNames, reviewUrl }:
           <a href="${esc(reviewUrl)}" style="display:inline-block;background:#1f2933;color:#ffffff;text-decoration:none;font-weight:600;font-size:16px;padding:13px 24px;border-radius:8px">Write a review</a>
         </td></tr>
         <tr><td style="padding:12px 28px 28px;font-size:13px;line-height:1.5;color:#5f6b78">
-          This link works for ${REVIEW_LINK_DAYS} days. You got this email because you ordered from ${esc(storeName)}.
+          This link works for ${REVIEW_LINK_DAYS} days. You got this email because you ordered from ${esc(storeName)}.<br>
+          Don't want review requests from ${esc(storeName)}? <a href="${esc(unsubscribeUrl)}" style="color:#5f6b78">Unsubscribe</a>
         </td></tr>
       </table>
     </td></tr>

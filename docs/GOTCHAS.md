@@ -16,6 +16,12 @@
 
 ---
 
+## 2026-10-13 — Product reads must go through `lib/wix/catalog.ts` (Catalog V1 and V3)
+
+A Wix store runs Catalog V1 **or** V3, and the APIs are not compatible; new stores and dev test sites are V3. `lib/wix/catalog.ts` checks the version (`/stores/v3/provision/version`) and reads `stores-reader/v1/products/{id}` or `stores/v3/products/{id}`. If the version check fails it tries V3, then V1, so a missing permission degrades to "Your recent purchase" instead of an error — which also means **a missing permission fails quietly**. The app needs these permissions in the Wix app dashboard: Read Products (V1), Read products in v3 catalog, Read v3 catalog. Don't call a Stores products URL directly anywhere else. Hidden products need the extra "Product v3 read admin" scope on V3; we don't ask for it, so hidden products show the generic label. *(Hit by: Claude, 2026-10-13.)*
+
+---
+
 ## 2026-10-13 — Monthly request limit: where it lives and what can break it
 
 The limit is checked in one place: `handleOrderFulfilled` in `app/api/wix/webhook/route.ts`, using `lib/usage.ts` (count of this UTC month's `review_requests` that are not `SKIPPED`) and `lib/plans.ts` (limits per plan). Over the limit the order is stored with `status=SKIPPED, skip_reason=monthly_limit` so the dashboard can say how many customers weren't asked. **Any new way of creating requests (manual send, reminders, import of old orders) must call `requestUsage()` first**, or that path is uncapped. The plan comes live from Wix `billing.packageName`, matched by the words GROWTH / PRO / STARTER — so the plan names in the Wix app dashboard must contain those words, or a paid merchant falls back to Starter limits. Two webhooks at the same instant can pass the limit by one or two; accepted. The older 2026-05-21 entry below (plan via an `app-instance#updated` webhook) describes a design that was never built. *(Hit by: Claude, 2026-10-13.)*

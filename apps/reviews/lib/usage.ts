@@ -33,8 +33,10 @@ export type RequestUsage = {
 export async function requestUsage(accountId: string, plan: Plan, now: Date = new Date()): Promise<RequestUsage> {
   const [row] = await db
     .select({
-      used: sql<number>`count(*) filter (where ${reviewRequests.status} <> 'SKIPPED')`,
-      skipped: sql<number>`count(*) filter (where ${reviewRequests.status} = 'SKIPPED')`,
+      // A request skipped at send time (unsubscribed) was scheduled, so it
+      // still counts; only limit skips are excluded.
+      used: sql<number>`count(*) filter (where ${reviewRequests.status} <> 'SKIPPED' or ${reviewRequests.skipReason} is distinct from 'monthly_limit')`,
+      skipped: sql<number>`count(*) filter (where ${reviewRequests.status} = 'SKIPPED' and ${reviewRequests.skipReason} = 'monthly_limit')`,
     })
     .from(reviewRequests)
     .where(and(eq(reviewRequests.accountId, accountId), gte(reviewRequests.createdAt, monthStartUtc(now))));

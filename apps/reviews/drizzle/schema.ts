@@ -98,6 +98,23 @@ export const reviews = reviewsSchema.table(
   }),
 );
 
+// Shoppers who asked one store to stop sending review requests (unsubscribe).
+// Only a SHA-256 hash of the lower-cased email is kept: enough to match,
+// not enough to read back. Per store, not global.
+export const emailSuppressions = reviewsSchema.table(
+  "email_suppressions",
+  {
+    id:        text("id").primaryKey().$defaultFn(() => createId()),
+    accountId: text("account_id").references(() => accounts.id, { onDelete: "cascade" }).notNull(),
+    emailHash: text("email_hash").notNull(),
+    source:    text("source").notNull(), // "link" (unsubscribe page) or "one_click" (mail app button)
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => ({
+    onePerEmail: uniqueIndex("es_account_email_uq").on(t.accountId, t.emailHash),
+  }),
+);
+
 export const reviewMedia = reviewsSchema.table("review_media", {
   id:        text("id").primaryKey().$defaultFn(() => createId()),
   reviewId:  text("review_id").references(() => reviews.id, { onDelete: "cascade" }).notNull(),
