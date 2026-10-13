@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { eq, and, desc } from "drizzle-orm";
 import { db, accounts, reviews } from "@/lib/db";
+import { resolveInstanceId } from "@/lib/wix/instance";
 
 export const runtime = "nodejs";
 
@@ -12,12 +13,12 @@ const PAGE_SIZE = 25;
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
-  const instanceId = searchParams.get("instanceId");
   const status = searchParams.get("status") ?? "PENDING";
   const page = Math.max(0, parseInt(searchParams.get("page") ?? "0", 10));
 
+  const instanceId = resolveInstanceId(searchParams, req.headers.get("x-wix-instance"));
   if (!instanceId) {
-    return NextResponse.json({ error: "missing_instance_id" }, { status: 400 });
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
   const account = await db.query.accounts.findFirst({

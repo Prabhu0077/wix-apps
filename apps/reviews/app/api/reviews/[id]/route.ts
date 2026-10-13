@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db, accounts, reviews } from "@/lib/db";
+import { resolveInstanceId } from "@/lib/wix/instance";
 
 export const runtime = "nodejs";
 
@@ -24,14 +25,15 @@ export async function PATCH(
     return NextResponse.json({ error: "invalid_body" }, { status: 400 });
   }
 
-  const { instanceId, action, reply } = body as {
-    instanceId?: string;
+  const { instance, action, reply } = body as {
+    instance?: string;
     action?: string;
     reply?: string;
   };
 
+  const instanceId = resolveInstanceId(req.nextUrl.searchParams, req.headers.get("x-wix-instance"), instance);
   if (!instanceId) {
-    return NextResponse.json({ error: "missing_instance_id" }, { status: 400 });
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
   if (!action || !(action in ACTION_TO_STATUS)) {

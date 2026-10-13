@@ -48,7 +48,7 @@ function StarRow({ rating }: { rating: number }) {
 
 function ModerationContent() {
   const searchParams = useSearchParams();
-  const instanceId = searchParams.get("instanceId");
+  const instance = searchParams.get("instance");
 
   const [activeTab, setActiveTab] = useState<StatusTab>("PENDING");
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -59,8 +59,8 @@ function ModerationContent() {
   const [expandedReply, setExpandedReply] = useState<string | null>(null);
 
   const fetchReviews = useCallback(async () => {
-    if (!instanceId) {
-      setError("No instance ID.");
+    if (!instance) {
+      setError("No instance.");
       setLoading(false);
       return;
     }
@@ -68,7 +68,7 @@ function ModerationContent() {
     setError(null);
     try {
       const res = await fetch(
-        `/api/reviews?instanceId=${encodeURIComponent(instanceId)}&status=${activeTab}`
+        `/api/reviews?instance=${encodeURIComponent(instance)}&status=${activeTab}`
       );
       if (!res.ok) throw new Error("Failed to fetch");
       const data = await res.json();
@@ -78,18 +78,18 @@ function ModerationContent() {
     } finally {
       setLoading(false);
     }
-  }, [instanceId, activeTab]);
+  }, [instance, activeTab]);
 
   useEffect(() => { fetchReviews(); }, [fetchReviews]);
 
   async function doAction(reviewId: string, action: "approve" | "reject" | "hide", reply?: string) {
-    if (!instanceId) return;
+    if (!instance) return;
     setActionLoading(reviewId);
     try {
       const res = await fetch(`/api/reviews/${reviewId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ instanceId, action, ...(reply ? { reply } : {}) }),
+        body: JSON.stringify({ instance, action, ...(reply ? { reply } : {}) }),
       });
       if (!res.ok) throw new Error("Action failed");
       setReviews((prev) => prev.filter((r) => r.id !== reviewId));

@@ -294,7 +294,7 @@ function WidgetContent() {
 
       {/* Powered-by footer */}
       <div style={{ textAlign: "center", marginTop: 24, fontSize: 11, color: "#d1d5db" }}>
-        Powered by Visual UGC Reviews
+        Powered by NeoReviewKit
       </div>
     </div>
   );

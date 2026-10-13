@@ -28,20 +28,20 @@ function Star({ filled }: { filled: boolean }) {
 
 function OverviewContent() {
   const searchParams = useSearchParams();
-  const instanceId = searchParams.get("instanceId");
+  const instance = searchParams.get("instance");
 
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchStats = useCallback(async () => {
-    if (!instanceId) {
-      setError("No instance ID — open this app from your Wix dashboard.");
+    if (!instance) {
+      setError("No instance — open this app from your Wix dashboard.");
       setLoading(false);
       return;
     }
     try {
-      const res = await fetch(`/api/stats?instanceId=${encodeURIComponent(instanceId)}`);
+      const res = await fetch(`/api/stats?instance=${encodeURIComponent(instance)}`);
       if (!res.ok) {
         const { error: msg } = await res.json();
         setError(msg ?? "Failed to load stats");
@@ -53,7 +53,7 @@ function OverviewContent() {
     } finally {
       setLoading(false);
     }
-  }, [instanceId]);
+  }, [instance]);
 
   useEffect(() => { fetchStats(); }, [fetchStats]);
 
@@ -86,7 +86,7 @@ function OverviewContent() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-white">Overview</h1>
-          <p className="text-slate-400 text-sm mt-0.5">Visual UGC Reviews — your store at a glance</p>
+          <p className="text-slate-400 text-sm mt-0.5">NeoReviewKit — your store at a glance</p>
         </div>
         <span className={`text-xs font-semibold px-3 py-1 rounded-full uppercase tracking-wide ${PLAN_BADGE[stats.plan] ?? PLAN_BADGE.FREE}`}>
           {stats.plan}
@@ -128,7 +128,7 @@ function OverviewContent() {
             <p className="text-amber-500 text-xs mt-0.5">Publish them to show on your product pages</p>
           </div>
           <a
-            href={`/reviews${instanceId ? `?instanceId=${instanceId}` : ""}`}
+            href={`/reviews${instance ? `?instance=${instance}` : ""}`}
             className="bg-amber-500 hover:bg-amber-400 text-black text-xs font-semibold px-4 py-2 rounded-lg transition-colors"
           >
             Review Now →

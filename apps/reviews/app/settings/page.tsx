@@ -33,7 +33,7 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
 
 function SettingsContent() {
   const searchParams = useSearchParams();
-  const instanceId = searchParams.get("instanceId");
+  const instance = searchParams.get("instance");
 
   const [settings, setSettings] = useState<AppSettings>(DEFAULT);
   const [loading, setLoading] = useState(true);
@@ -42,9 +42,9 @@ function SettingsContent() {
   const [error, setError] = useState<string | null>(null);
 
   const fetchSettings = useCallback(async () => {
-    if (!instanceId) { setLoading(false); return; }
+    if (!instance) { setLoading(false); return; }
     try {
-      const res = await fetch(`/api/settings?instanceId=${encodeURIComponent(instanceId)}`);
+      const res = await fetch(`/api/settings?instance=${encodeURIComponent(instance)}`);
       if (res.ok) {
         const data = await res.json();
         setSettings({ ...DEFAULT, ...data.settings });
@@ -52,12 +52,12 @@ function SettingsContent() {
     } finally {
       setLoading(false);
     }
-  }, [instanceId]);
+  }, [instance]);
 
   useEffect(() => { fetchSettings(); }, [fetchSettings]);
 
   const save = async () => {
-    if (!instanceId) return;
+    if (!instance) return;
     setSaving(true);
     setError(null);
     setSaved(false);
@@ -65,7 +65,7 @@ function SettingsContent() {
       const res = await fetch("/api/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ instanceId, settings }),
+        body: JSON.stringify({ instance, settings }),
       });
       if (!res.ok) throw new Error("Save failed");
       setSaved(true);
@@ -90,7 +90,7 @@ function SettingsContent() {
     <div className="p-6 space-y-8 max-w-xl">
       <div>
         <h1 className="text-xl font-semibold text-white">Settings</h1>
-        <p className="text-slate-400 text-sm mt-0.5">Configure how Visual UGC Reviews works for your store</p>
+        <p className="text-slate-400 text-sm mt-0.5">Configure how NeoReviewKit works for your store</p>
       </div>
 
       {/* Email settings */}

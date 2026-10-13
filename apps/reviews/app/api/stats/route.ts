@@ -4,13 +4,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { eq, count, and } from "drizzle-orm";
 import { db, accounts, reviews, reviewRequests } from "@/lib/db";
+import { resolveInstanceId } from "@/lib/wix/instance";
+import { resolvePlan } from "@/lib/wix/service";
 
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
-  const instanceId = req.nextUrl.searchParams.get("instanceId");
+  const instanceId = resolveInstanceId(req.nextUrl.searchParams, req.headers.get("x-wix-instance"));
   if (!instanceId) {
-    return NextResponse.json({ error: "missing_instance_id" }, { status: 400 });
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
   const account = await db.query.accounts.findFirst({
@@ -46,8 +48,10 @@ export async function GET(req: NextRequest) {
         ) / 10
       : 0;
 
+  const plan = await resolvePlan(instanceId, account.plan as "FREE" | "PRO" | "GROWTH");
+
   return NextResponse.json({
-    plan: account.plan,
+    plan,
     totalReviews: Number(totalReviews),
     pendingReviews: Number(pendingReviews),
     approvedReviews: Number(approvedReviews),

@@ -65,15 +65,15 @@ const PLANS: {
 
 function BillingContent() {
   const searchParams = useSearchParams();
-  const instanceId = searchParams.get("instanceId");
+  const instance = searchParams.get("instance");
 
   const [currentPlan, setCurrentPlan] = useState<Plan | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchPlan = useCallback(async () => {
-    if (!instanceId) { setLoading(false); return; }
+    if (!instance) { setLoading(false); return; }
     try {
-      const res = await fetch(`/api/stats?instanceId=${encodeURIComponent(instanceId)}`);
+      const res = await fetch(`/api/stats?instance=${encodeURIComponent(instance)}`);
       if (res.ok) {
         const data = await res.json();
         setCurrentPlan(data.plan as Plan);
@@ -81,7 +81,7 @@ function BillingContent() {
     } finally {
       setLoading(false);
     }
-  }, [instanceId]);
+  }, [instance]);
 
   useEffect(() => { fetchPlan(); }, [fetchPlan]);
 
@@ -166,7 +166,7 @@ function BillingContent() {
         <p className="text-white font-medium text-sm">Managing your subscription</p>
         <p className="text-slate-400 text-sm leading-relaxed">
           Subscriptions are managed through the Wix App Market. To upgrade, downgrade, or cancel, go to{" "}
-          <strong className="text-slate-300">Wix Dashboard → App Market → Manage Apps</strong> and select Visual UGC Reviews.
+          <strong className="text-slate-300">Wix Dashboard → App Market → Manage Apps</strong> and select NeoReviewKit.
         </p>
         <p className="text-slate-400 text-sm">
           Questions?{" "}

@@ -44,3 +44,28 @@ export async function getWixClient(wixInstanceId: string): Promise<WixClient> {
     },
   });
 }
+
+/**
+ * Determine the current plan for an instance via Wix "Get App Instance".
+ * Falls back to the provided plan if the lookup fails.
+ * Docs: https://dev.wix.com/docs/rest/app-management/app-instance/get-app-instance
+ */
+export async function resolvePlan(
+  wixInstanceId: string,
+  fallback: "FREE" | "PRO" | "GROWTH" = "FREE",
+): Promise<"FREE" | "PRO" | "GROWTH"> {
+  try {
+    const client = await getWixClient(wixInstanceId);
+    const data = await client.get<{
+      instance?: { isFree?: boolean; billing?: { packageName?: string } };
+    }>("https://www.wixapis.com/apps/v1/instance");
+    const inst = data?.instance;
+    if (!inst || inst.isFree !== false) return "FREE";
+    const pkg = (inst.billing?.packageName ?? "").toUpperCase();
+    if (pkg.includes("GROWTH")) return "GROWTH";
+    if (pkg.includes("STARTER") || pkg.includes("PRO")) return "PRO";
+    return "PRO"; // paid, unknown package → lowest paid tier
+  } catch {
+    return fallback;
+  }
+}

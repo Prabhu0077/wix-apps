@@ -20,10 +20,10 @@ const NAV_ITEMS = [
 function NavSidebar({ children }: { children: React.ReactNode }) {
   const searchParams = useSearchParams();
   const pathname = usePathname();
-  const instanceId = searchParams.get("instanceId");
+  const instance = searchParams.get("instance");
 
   function href(path: string) {
-    return instanceId ? `${path}?instanceId=${encodeURIComponent(instanceId)}` : path;
+    return instance ? `${path}?instance=${encodeURIComponent(instance)}` : path;
   }
 
   function isActive(path: string) {

@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
 
   // Fan out by event slug.
   switch (`${payload.entityFqdn}#${payload.slug}`) {
-    case "wix.ecom.v1.order#fulfilled":
+    case "wix.ecom.v1.order#approved":
       after(async () => {
         await handleOrderFulfilled(payload.instanceId, payload.entityId);
       });
@@ -121,7 +121,8 @@ async function handleOrderFulfilled(wixInstanceId: string, orderId: string) {
       return;
     }
 
-    const scheduledFor = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+    const delayDays = Math.max(1, Math.min(60, Number((account.settings as { emailDelayDays?: number } | null)?.emailDelayDays) || 14));
+    const scheduledFor = new Date(Date.now() + delayDays * 24 * 60 * 60 * 1000);
 
     await db.insert(reviewRequests).values({
       accountId: account.id,
