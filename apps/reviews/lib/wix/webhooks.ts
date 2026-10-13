@@ -64,7 +64,14 @@ function parseJsonString<T>(value: unknown): T | null {
 function toWebhook(envelope: unknown): WixWebhook | null {
   const e = envelope as { eventType?: unknown; instanceId?: unknown; data?: unknown } | null;
   if (!e || typeof e.eventType !== "string" || typeof e.instanceId !== "string") return null;
-  const event = typeof e.data === "string" ? parseJsonString<WixEvent>(e.data) : (e.data as WixEvent | undefined);
+  // App-instance events (AppInstalled, AppRemoved, ...) carry little or no
+  // event data; domain events carry a JSON string.
+  const event =
+    e.data === undefined || e.data === null || e.data === ""
+      ? ({ id: "" } as WixEvent)
+      : typeof e.data === "string"
+        ? parseJsonString<WixEvent>(e.data)
+        : (e.data as WixEvent);
   if (!event || typeof event !== "object") return null;
   return { eventType: e.eventType, instanceId: e.instanceId, event };
 }

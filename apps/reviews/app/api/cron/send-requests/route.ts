@@ -41,6 +41,14 @@ export async function GET(req: NextRequest) {
     try {
       const account = await db.query.accounts.findFirst({ where: eq(accounts.id, request.accountId) });
       if (!account) throw new Error(`account ${request.accountId} not found`);
+      if (account.uninstalledAt) {
+        await db
+          .update(reviewRequests)
+          .set({ status: "SKIPPED", skipReason: "uninstalled" })
+          .where(eq(reviewRequests.id, request.id));
+        skipped++;
+        continue;
+      }
 
       // The shopper may have unsubscribed after this request was scheduled.
       if (await isSuppressed(account.id, request.customerEmail)) {

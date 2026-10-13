@@ -32,7 +32,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ prod
   }
 
   const account = await db.query.accounts.findFirst({ where: eq(accounts.wixInstanceId, instanceId) });
-  if (!account) {
+  if (!account || account.uninstalledAt) {
     // Hide quietly on the storefront rather than show an error to shoppers.
     return NextResponse.json(EMPTY, { status: 200, headers: CORS_HEADERS });
   }

@@ -4,14 +4,24 @@
     {
       "path": "/api/cron/send-requests",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/purge-uninstalled",
+      "schedule": "30 3 * * *"
     }
   ],
   "headers": [
     {
       "source": "/review/(.*)",
       "headers": [
-        { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
-        { "key": "X-Content-Type-Options", "value": "nosniff" }
+        {
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        }
       ]
     }
   ]

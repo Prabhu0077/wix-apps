@@ -1,0 +1,1 @@
+ALTER TABLE "reviews"."accounts" ADD COLUMN "uninstalled_at" timestamp;

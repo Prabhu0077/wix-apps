@@ -75,6 +75,7 @@ export async function GET(req: NextRequest) {
         wixAccessToken: encryptedAccessToken,
         wixRefreshToken: encryptedRefreshToken,
         wixTokenExpiresAt: tokenExpiresAt,
+        uninstalledAt: null, // reinstall within 30 days cancels deletion
       },
     });
 

@@ -70,7 +70,10 @@ export default function PrivacyPage() {
       <ul>
         <li>Reviews and photos: while the app is installed, then deleted within 30 days of uninstall</li>
         <li>Review requests: while the app is installed; each review link stops working after {REVIEW_LINK_DAYS} days</li>
-        <li>Store owner account data: deleted within 30 days of uninstall</li>
+        <li>Store owner account data: deleted within 30 days of uninstall; Wix access tokens are deleted at uninstall</li>
+        <li>
+          Unsubscribe list: kept as one-way hashes of shopper emails (not readable), deleted with the store&apos;s data
+        </li>
       </ul>
 
       <h2>Your rights</h2>

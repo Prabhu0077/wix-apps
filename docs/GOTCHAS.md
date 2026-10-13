@@ -16,6 +16,12 @@
 
 ---
 
+## 2026-10-13 — Neon migration log has an entry this repo doesn't know
+
+Migrations 0002–0004 were applied to Neon on 13 Oct 2026 with `node --env-file=.env.local node_modules\drizzle-kit\bin.cjs migrate` (run from `apps/reviews`; `--env-file` loads the URL without anyone printing it). `drizzle.__drizzle_migrations` has 6 rows; row 1 (`created_at` 1768503401503, Jan 2026) matches no file in `drizzle/migrations/` — probably an earlier migration or another project on the same database. Drizzle only runs files whose journal time is **newer than the last row**, so if another project writes a newer row into the same table, our next migration is silently skipped. Before each migrate, run a read-only check of that table; long term, give this app its own database or migrations schema. *(Hit by: Claude, 2026-10-13.)*
+
+---
+
 ## 2026-10-13 — Unsubscribes are per store and stored only as email hashes
 
 `reviews.email_suppressions` keeps SHA-256 of the trimmed, lower-cased email per store (`lib/suppression.ts`), so you cannot list unsubscribed addresses — by design. The webhook skips suppressed shoppers before scheduling (not counted against the limit); the cron re-checks before each send and marks the request `SKIPPED` with `skip_reason=unsubscribed`. The usage meter counts only `monthly_limit` skips as "not asked". Emails carry a footer link (page with a button, so mail scanners can't unsubscribe people) and `List-Unsubscribe` + `List-Unsubscribe-Post` headers for one-click (RFC 8058). *(Hit by: Claude, 2026-10-13.)*

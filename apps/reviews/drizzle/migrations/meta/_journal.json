@@ -36,6 +36,13 @@
       "when": 1791912539501,
       "tag": "0004_email_suppressions",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791913688257,
+      "tag": "0005_uninstall_purge",
+      "breakpoints": true
     }
   ]
 }

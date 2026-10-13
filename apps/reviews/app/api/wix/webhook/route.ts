@@ -29,6 +29,19 @@ export async function POST(req: NextRequest) {
   }
 
   const { instanceId, event } = webhook;
+
+  // App lifecycle events have a plain eventType and no entityFqdn.
+  // Names per Wix's App Instance webhooks; confirm with a real uninstall on
+  // the test store (logged below) before launch.
+  if (webhook.eventType === "AppRemoved") {
+    after(() => markUninstalled(instanceId));
+    return NextResponse.json({ ok: true });
+  }
+  if (webhook.eventType === "AppInstalled") {
+    after(() => markReinstalled(instanceId));
+    return NextResponse.json({ ok: true });
+  }
+
   const kind = `${event.entityFqdn ?? ""}#${event.slug ?? ""}`;
 
   switch (kind) {
@@ -45,6 +58,37 @@ export async function POST(req: NextRequest) {
 }
 
 // Not exported — App Router route files may only export HTTP handlers.
+
+// Uninstall: stop all outgoing email at once, drop the Wix tokens (they no
+// longer work and shouldn't be kept), and start the 30-day deletion clock.
+// Reviews stay until the purge job runs, so a quick reinstall loses nothing.
+async function markUninstalled(wixInstanceId: string) {
+  try {
+    const [account] = await db
+      .update(accounts)
+      .set({ uninstalledAt: new Date(), wixAccessToken: null, wixRefreshToken: null, wixTokenExpiresAt: null })
+      .where(eq(accounts.wixInstanceId, wixInstanceId))
+      .returning({ id: accounts.id });
+    if (!account) return;
+    await db
+      .update(reviewRequests)
+      .set({ status: "SKIPPED", skipReason: "uninstalled" })
+      .where(and(eq(reviewRequests.accountId, account.id), eq(reviewRequests.status, "SCHEDULED")));
+    console.log(`[webhook] app removed from instance ${wixInstanceId}; data deleted in 30 days`);
+  } catch (err) {
+    console.error(`[webhook] failed to mark instance ${wixInstanceId} uninstalled`, err);
+  }
+}
+
+// Reinstall keeps the same instance ID (Wix), so cancel the deletion clock.
+// New tokens arrive through the OAuth install route.
+async function markReinstalled(wixInstanceId: string) {
+  try {
+    await db.update(accounts).set({ uninstalledAt: null }).where(eq(accounts.wixInstanceId, wixInstanceId));
+  } catch (err) {
+    console.error(`[webhook] failed to clear uninstall for ${wixInstanceId}`, err);
+  }
+}
 async function handleOrderFulfilled(wixInstanceId: string, event: WixEvent) {
   const body = (event.actionEvent?.body ?? {}) as { order?: OrderLike; newFulfillmentStatus?: string };
   const orderId = body.order?.id ?? event.entityId;
@@ -62,6 +106,7 @@ async function handleOrderFulfilled(wixInstanceId: string, event: WixEvent) {
       console.error(`[webhook] no account for instance ${wixInstanceId}`);
       return;
     }
+    if (account.uninstalledAt) return; // late event after uninstall
 
     const existing = await db.query.reviewRequests.findFirst({
       where: and(eq(reviewRequests.accountId, account.id), eq(reviewRequests.wixOrderId, orderId)),

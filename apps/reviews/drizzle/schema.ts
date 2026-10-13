@@ -33,6 +33,9 @@ export const accounts = reviewsSchema.table("accounts", {
   wixAccessToken:  text("wix_access_token"),
   wixTokenExpiresAt: timestamp("wix_token_expires_at"),
   settings: jsonb("settings").$type<Record<string, unknown>>().default({}).notNull(),
+  // Set when Wix tells us the app was removed; cleared on reinstall. The
+  // purge job deletes the account (and, by cascade, all its data) 30 days on.
+  uninstalledAt: timestamp("uninstalled_at"),
 });
 
 export const subscriptions = reviewsSchema.table("subscriptions", {
