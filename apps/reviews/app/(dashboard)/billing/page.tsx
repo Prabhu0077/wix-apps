@@ -23,7 +23,8 @@ const PLANS: { key: string; price: string; quota: string; features: Feature[] }[
       { text: "Photo reviews", soon: true },
       { text: "Verified buyer badge" },
       { text: "Product page reviews" },
-      { text: "Import and export, always", soon: true },
+      { text: "Export all your reviews, any time" },
+      { text: "Import from other apps", soon: true },
     ],
   },
   {

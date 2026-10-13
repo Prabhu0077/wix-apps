@@ -194,12 +194,25 @@ function Reviews() {
 
   return (
     <div className="stack">
-      <div className="filters" role="group" aria-label="Show reviews">
-        {FILTERS.map((f) => (
-          <button key={f.key} className="chip" aria-pressed={filter === f.key} onClick={() => setFilter(f.key)}>
-            {f.label}
-          </button>
-        ))}
+      <div className="toolbar">
+        <div className="filters" role="group" aria-label="Show reviews">
+          {FILTERS.map((f) => (
+            <button key={f.key} className="chip" aria-pressed={filter === f.key} onClick={() => setFilter(f.key)}>
+              {f.label}
+            </button>
+          ))}
+        </div>
+        {/* Every plan, every review, any time (PRD R9). A plain link so the
+            browser handles the download inside the Wix dashboard iframe. */}
+        {instance && (
+          <a
+            className="btn btn-secondary btn-sm"
+            href={`/api/reviews/export?instance=${encodeURIComponent(instance)}`}
+            download
+          >
+            Export all reviews (CSV)
+          </a>
+        )}
       </div>
 
       {notice && (
