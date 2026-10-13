@@ -1,71 +1,43 @@
 // Settings API
-// GET  /api/settings?instanceId=X  — returns account settings
-// POST /api/settings               — body: { instanceId, settings: {...} }
-//
-// Settings are stored as a jsonb column on reviews.accounts.
+// GET  /api/settings?instance=<signed instance>
+// POST /api/settings   body: { instance, settings: Partial<AppSettings> }
 
 import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
+
 import { db, accounts } from "@/lib/db";
+import { readSettings, SettingsSchema } from "@/lib/settings";
 import { resolveInstanceId } from "@/lib/wix/instance";
 
 export const runtime = "nodejs";
-
-export type AppSettings = {
-  emailDelayDays: number;      // days after order before review request email
-  fromName: string;            // sender name in email (e.g. "Store Team")
-  widgetTheme: "light" | "dark" | "auto";
-  showPhotosFirst: boolean;
-  minRatingToPublish: 1 | 2 | 3 | 4 | 5;
-};
-
-const DEFAULT_SETTINGS: AppSettings = {
-  emailDelayDays: 14,
-  fromName: "The Store Team",
-  widgetTheme: "auto",
-  showPhotosFirst: false,
-  minRatingToPublish: 1,
-};
 
 export async function GET(req: NextRequest) {
   const instanceId = resolveInstanceId(req.nextUrl.searchParams, req.headers.get("x-wix-instance"));
   if (!instanceId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  const account = await db.query.accounts.findFirst({
-    where: eq(accounts.wixInstanceId, instanceId),
-  });
-
+  const account = await db.query.accounts.findFirst({ where: eq(accounts.wixInstanceId, instanceId) });
   if (!account) return NextResponse.json({ error: "account_not_found" }, { status: 404 });
 
-  const stored = (account.settings ?? {}) as Partial<AppSettings>;
-  return NextResponse.json({ settings: { ...DEFAULT_SETTINGS, ...stored } });
+  return NextResponse.json({ settings: readSettings(account.settings) });
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => null);
+  const body = (await req.json().catch(() => null)) as { instance?: string; settings?: unknown } | null;
   if (!body) return NextResponse.json({ error: "invalid_body" }, { status: 400 });
 
-  const { instance, settings } = body as { instance?: string; settings?: Partial<AppSettings> };
-  const instanceId = resolveInstanceId(req.nextUrl.searchParams, req.headers.get("x-wix-instance"), instance);
+  const instanceId = resolveInstanceId(req.nextUrl.searchParams, req.headers.get("x-wix-instance"), body.instance);
   if (!instanceId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  const account = await db.query.accounts.findFirst({
-    where: eq(accounts.wixInstanceId, instanceId),
-  });
+  const patch = SettingsSchema.partial().safeParse(body.settings ?? {});
+  if (!patch.success) return NextResponse.json({ error: "invalid_settings" }, { status: 400 });
 
+  const account = await db.query.accounts.findFirst({ where: eq(accounts.wixInstanceId, instanceId) });
   if (!account) return NextResponse.json({ error: "account_not_found" }, { status: 404 });
 
-  const current = (account.settings ?? {}) as Partial<AppSettings>;
-  const updated: AppSettings = { ...DEFAULT_SETTINGS, ...current, ...(settings ?? {}) };
+  // Keep non-settings keys (e.g. storeName set at install) that live in the same jsonb.
+  const stored = (account.settings ?? {}) as Record<string, unknown>;
+  const updated = { ...stored, ...readSettings(stored), ...patch.data };
 
-  // Validate ranges
-  updated.emailDelayDays = Math.max(1, Math.min(60, updated.emailDelayDays));
-  updated.fromName = (updated.fromName ?? "").slice(0, 60) || DEFAULT_SETTINGS.fromName;
-
-  await db
-    .update(accounts)
-    .set({ settings: updated as Record<string, unknown> })
-    .where(eq(accounts.id, account.id));
-
-  return NextResponse.json({ settings: updated });
+  await db.update(accounts).set({ settings: updated }).where(eq(accounts.id, account.id));
+  return NextResponse.json({ settings: readSettings(updated) });
 }

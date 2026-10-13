@@ -4,7 +4,7 @@
 // Convention: shared shell tables (accounts, subscriptions) are extraction
 // candidates for packages/db when app #2 arrives. Reviews-specific tables stay here.
 
-import { text, integer, timestamp, jsonb, index, uniqueIndex, pgSchema } from "drizzle-orm/pg-core";
+import { text, integer, timestamp, jsonb, boolean, index, uniqueIndex, pgSchema } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
 
@@ -14,9 +14,10 @@ export const reviewsSchema = pgSchema("reviews");
 
 export const planEnum          = reviewsSchema.enum("plan",            ["FREE", "PRO", "GROWTH"]);
 export const subStatusEnum     = reviewsSchema.enum("sub_status",      ["ACTIVE", "PAST_DUE", "CANCELLED"]);
-export const requestStatusEnum = reviewsSchema.enum("request_status",  ["SCHEDULED", "SENT", "OPENED", "COMPLETED", "EXPIRED"]);
+export const requestStatusEnum = reviewsSchema.enum("request_status",  ["SCHEDULED", "SENT", "OPENED", "COMPLETED", "EXPIRED", "FAILED"]);
 export const reviewStatusEnum  = reviewsSchema.enum("review_status",   ["PENDING", "APPROVED", "REJECTED", "HIDDEN"]);
 export const mediaKindEnum     = reviewsSchema.enum("media_kind",      ["PHOTO", "VIDEO"]);
+export const reviewSourceEnum  = reviewsSchema.enum("review_source",   ["REQUEST", "IMPORT", "MANUAL"]);
 
 // ---------- Shared shell tables (extraction candidates) ----------
 
@@ -55,6 +56,8 @@ export const reviewRequests = reviewsSchema.table(
     status:        requestStatusEnum("status").notNull(),
     scheduledFor:  timestamp("scheduled_for").notNull(),
     sentAt:        timestamp("sent_at"),
+    attempts:      integer("attempts").default(0).notNull(),   // send attempts; FAILED after 5
+    lastError:     text("last_error"),
     publicToken:   text("public_token").unique().notNull().$defaultFn(() => createId()),
     createdAt:     timestamp("created_at").defaultNow().notNull(),
   },
@@ -78,6 +81,9 @@ export const reviews = reviewsSchema.table(
     status:          reviewStatusEnum("status").notNull(),
     moderationFlags: jsonb("moderation_flags").$type<string[]>().default([]).notNull(),
     reply:           text("reply"),
+    // Verified = submitted through a review-request token tied to a real Wix order.
+    verified:        boolean("verified").default(false).notNull(),
+    source:          reviewSourceEnum("source").default("REQUEST").notNull(),
     publishedAt:     timestamp("published_at"),
     createdAt:       timestamp("created_at").defaultNow().notNull(),
   },

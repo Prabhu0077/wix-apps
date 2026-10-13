@@ -14,6 +14,8 @@ const envSchema = z.object({
   WIX_APP_SECRET:          z.string().min(1),
   WIX_WEBHOOK_PUBLIC_KEY:  z.string().min(1),
   WIX_TOKENS_MASTER_KEY:   z.string().length(64),
+  // "1" lets local scripts post unsigned test webhooks. Ignored in production.
+  WIX_WEBHOOK_DEV_BYPASS:  z.enum(["1"]).optional(),
 
   // Cloudflare R2 (optional until R2 billing is activated)
   R2_ACCOUNT_ID:        z.string().min(1).optional(),

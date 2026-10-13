@@ -1,141 +1,101 @@
-// Wix webhook fanout. All Wix-triggered events land here.
-//
-// Contract: respond <1s. Validate signature → enqueue work → return 200.
-// Heavy work (sending email, fetching from Wix APIs, transcoding) goes to a
-// worker, never inline here.
+// All Wix webhooks land here.
+// Contract: verify → answer 200 fast (Wix waits ~1.25 s) → do work in after().
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { and, eq } from "drizzle-orm";
-import { db, accounts, reviewRequests } from "@/lib/db";
-import { getWixClient } from "@/lib/wix/service";
-import { after } from "next/server";
 
-import {
-  parseWixWebhookPayload,
-  verifyWixWebhookSignature,
-} from "@/lib/wix/webhooks";
+import { db, accounts, reviewRequests } from "@/lib/db";
+import { readSettings } from "@/lib/settings";
+import { verifyWixWebhook, type WixEvent } from "@/lib/wix/webhooks";
+import { getWixClient } from "@/lib/wix/service";
 
 export const runtime = "nodejs";
 
-export async function POST(req: NextRequest) {
-  const rawBody = await req.text();
-  const signature = req.headers.get("digest");
+type OrderLike = {
+  id?: string;
+  fulfillmentStatus?: string;
+  buyerInfo?: { email?: string };
+  billingInfo?: { contactDetails?: { email?: string } };
+  shippingInfo?: { deliveries?: { destination?: { contactDetails?: { email?: string } } }[] };
+  lineItems?: { productId?: string; catalogReference?: { catalogItemId?: string } }[];
+};
 
-  const valid = await verifyWixWebhookSignature(rawBody, signature);
-  if (!valid) {
+export async function POST(req: NextRequest) {
+  const webhook = await verifyWixWebhook(await req.text());
+  if (!webhook) {
     return NextResponse.json({ error: "invalid_signature" }, { status: 401 });
   }
 
-  let payload;
-  try {
-    payload = parseWixWebhookPayload(rawBody);
-  } catch (err) {
-    console.error("[webhook] invalid payload", err);
-    return NextResponse.json({ error: "invalid_payload" }, { status: 400 });
-  }
+  const { instanceId, event } = webhook;
+  const kind = `${event.entityFqdn ?? ""}#${event.slug ?? ""}`;
 
-  // Fan out by event slug.
-  switch (`${payload.entityFqdn}#${payload.slug}`) {
-    case "wix.ecom.v1.order#approved":
-      after(async () => {
-        await handleOrderFulfilled(payload.instanceId, payload.entityId);
-      });
+  switch (kind) {
+    // "Order Fulfilled" fires on any fulfilment-status change, including back
+    // to not fulfilled — only act when the order is now FULFILLED.
+    case "wix.ecom.v1.order#fulfilled":
+      after(() => handleOrderFulfilled(instanceId, event));
       break;
-
-    case "wix.ecom.v1.order#payment_status_updated":
-      console.log("[webhook] payment status updated", payload.entityId);
-      break;
-
-    case "wix.app-market.v1.app-instance#installed":
-      console.log("[webhook] app instance installed", payload.entityId);
-      break;
-
-    case "wix.app-market.v1.app-instance#removed":
-      console.log("[webhook] app instance removed", payload.entityId);
-      break;
-
     default:
-      console.warn("[webhook] unhandled event", payload.entityFqdn, payload.slug);
-      break;
+      console.log("[webhook] ignored", webhook.eventType, kind);
   }
 
   return NextResponse.json({ ok: true });
 }
 
-// Not exported — Next.js App Router rejects non-HTTP named exports from route files.
-async function handleOrderFulfilled(wixInstanceId: string, orderId: string) {
+// Not exported — App Router route files may only export HTTP handlers.
+async function handleOrderFulfilled(wixInstanceId: string, event: WixEvent) {
+  const body = (event.actionEvent?.body ?? {}) as { order?: OrderLike; newFulfillmentStatus?: string };
+  const orderId = body.order?.id ?? event.entityId;
+  if (!orderId) return;
+
+  const status = body.newFulfillmentStatus ?? body.order?.fulfillmentStatus;
+  if (status !== "FULFILLED") {
+    console.log(`[webhook] order ${orderId} is ${status ?? "unknown"}, not scheduling`);
+    return;
+  }
+
   try {
-    console.log(`[webhook] processing order fulfilled for instance: ${wixInstanceId}, order: ${orderId}`);
-
-    const account = await db.query.accounts.findFirst({
-      where: eq(accounts.wixInstanceId, wixInstanceId),
-    });
-
+    const account = await db.query.accounts.findFirst({ where: eq(accounts.wixInstanceId, wixInstanceId) });
     if (!account) {
-      console.error(`[webhook] Account not found for Wix Instance ID: ${wixInstanceId}`);
+      console.error(`[webhook] no account for instance ${wixInstanceId}`);
       return;
     }
 
-    const existingRequest = await db.query.reviewRequests.findFirst({
-      where: and(
-        eq(reviewRequests.accountId, account.id),
-        eq(reviewRequests.wixOrderId, orderId)
-      ),
+    const existing = await db.query.reviewRequests.findFirst({
+      where: and(eq(reviewRequests.accountId, account.id), eq(reviewRequests.wixOrderId, orderId)),
     });
+    if (existing) return; // Wix may deliver the same event more than once.
 
-    if (existingRequest) {
-      console.log(`[webhook] ReviewRequest already exists for order ${orderId}, skipping.`);
+    // Prefer the order in the event; fetch it only if the event was trimmed.
+    let order: OrderLike | undefined = body.order;
+    if (!order?.lineItems?.length || !order.buyerInfo?.email) {
+      const client = await getWixClient(wixInstanceId);
+      order = (await client.get<{ order: OrderLike }>(`https://www.wixapis.com/ecom/v1/orders/${orderId}`))?.order;
+    }
+
+    const email =
+      order?.buyerInfo?.email ||
+      order?.billingInfo?.contactDetails?.email ||
+      order?.shippingInfo?.deliveries?.[0]?.destination?.contactDetails?.email;
+    const productIds = (order?.lineItems ?? [])
+      .map((li) => li.productId || li.catalogReference?.catalogItemId)
+      .filter((id): id is string => typeof id === "string" && id.length > 0);
+
+    if (!email || productIds.length === 0) {
+      console.warn(`[webhook] order ${orderId}: missing email or products, skipping`);
       return;
     }
 
-    const wixClient = await getWixClient(wixInstanceId);
-
-    console.log(`[webhook] fetching order details for order ${orderId}`);
-    const orderRes = await wixClient.get<{ order: any }>(
-      `https://www.wixapis.com/ecom/v1/orders/${orderId}`
-    );
-
-    const order = orderRes?.order;
-    if (!order) {
-      console.error(`[webhook] order details not found for order: ${orderId}`);
-      return;
-    }
-
-    const customerEmail =
-      order.buyerInfo?.email ||
-      order.billingInfo?.contactDetails?.email ||
-      order.shippingInfo?.deliveries?.[0]?.destination?.contactDetails?.email;
-
-    if (!customerEmail) {
-      console.error(`[webhook] no customer email found for order ${orderId}`);
-      return;
-    }
-
-    const lineItems = order.lineItems || [];
-    const productIds: string[] = lineItems
-      .map((item: any) => item.productId || item.catalogReference?.catalogItemId)
-      .filter((id: string | undefined): id is string => typeof id === "string" && id.length > 0);
-
-    if (productIds.length === 0) {
-      console.warn(`[webhook] no valid products found in order ${orderId}, skipping.`);
-      return;
-    }
-
-    const delayDays = Math.max(1, Math.min(60, Number((account.settings as { emailDelayDays?: number } | null)?.emailDelayDays) || 14));
-    const scheduledFor = new Date(Date.now() + delayDays * 24 * 60 * 60 * 1000);
-
+    const delayDays = readSettings(account.settings).emailDelayDays;
     await db.insert(reviewRequests).values({
       accountId: account.id,
       wixOrderId: orderId,
-      customerEmail,
-      productIds,
+      customerEmail: email,
+      productIds: [...new Set(productIds)],
       status: "SCHEDULED",
-      scheduledFor,
+      scheduledFor: new Date(Date.now() + delayDays * 24 * 60 * 60 * 1000),
     });
-
-    console.log(
-      `[webhook] scheduled review request for order ${orderId} at ${scheduledFor.toISOString()}`
-    );
+    console.log(`[webhook] scheduled review request for order ${orderId} in ${delayDays} days`);
   } catch (err) {
     console.error(`[webhook] failed to process order ${orderId}`, err);
   }

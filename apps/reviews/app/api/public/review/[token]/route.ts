@@ -8,6 +8,12 @@ import { z } from "zod";
 import { db, accounts, reviewRequests, reviews, reviewMedia } from "@/lib/db";
 import { getWixClient } from "@/lib/wix/service";
 import { env } from "@/lib/env";
+import { REVIEW_LINK_DAYS } from "@/lib/product";
+import { readSettings } from "@/lib/settings";
+
+function isExpired(createdAt: Date): boolean {
+  return createdAt.getTime() < Date.now() - REVIEW_LINK_DAYS * 24 * 60 * 60 * 1000;
+}
 
 export const runtime = "nodejs";
 
@@ -26,9 +32,7 @@ export async function GET(
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
 
-  // Expired if link is > 30 days old
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-  if (request.createdAt < thirtyDaysAgo) {
+  if (isExpired(request.createdAt)) {
     return NextResponse.json({ error: "expired" }, { status: 410 });
   }
 
@@ -41,13 +45,18 @@ export async function GET(
   const productIds = request.productIds as string[];
   let products: { id: string; name: string; imageUrl?: string }[] = productIds.map((id) => ({
     id,
-    name: "Your Recent Purchase",
+    name: "Your recent purchase",
   }));
 
+  const account = await db.query.accounts.findFirst({
+    where: eq(accounts.id, request.accountId),
+  });
+  const storeName =
+    typeof (account?.settings as Record<string, unknown> | null)?.storeName === "string"
+      ? ((account!.settings as Record<string, unknown>).storeName as string)
+      : null;
+
   try {
-    const account = await db.query.accounts.findFirst({
-      where: eq(accounts.id, request.accountId),
-    });
     if (account) {
       const wixClient = await getWixClient(account.wixInstanceId);
       const resolved: typeof products = [];
@@ -58,11 +67,11 @@ export async function GET(
           }>(`https://www.wixapis.com/stores/v1/products/${pid}`);
           resolved.push({
             id: pid,
-            name: res?.product?.name ?? "Your Recent Purchase",
+            name: res?.product?.name ?? "Your recent purchase",
             imageUrl: res?.product?.media?.mainMedia?.image?.url,
           });
         } catch {
-          resolved.push({ id: pid, name: "Your Recent Purchase" });
+          resolved.push({ id: pid, name: "Your recent purchase" });
         }
       }
       if (resolved.length > 0) products = resolved;
@@ -71,12 +80,8 @@ export async function GET(
     console.warn("[review/token] could not resolve product names:", err);
   }
 
-  return NextResponse.json({
-    token,
-    customerEmail: request.customerEmail,
-    products,
-    status: request.status,
-  });
+  // The shopper's email is not returned: the page never needs it.
+  return NextResponse.json({ storeName, products });
 }
 
 const SubmitSchema = z.object({
@@ -107,9 +112,7 @@ export async function POST(
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
 
-  // Expired?
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-  if (request.createdAt < thirtyDaysAgo) {
+  if (isExpired(request.createdAt)) {
     return NextResponse.json({ error: "expired" }, { status: 410 });
   }
 
@@ -133,6 +136,9 @@ export async function POST(
   // We insert for the first product by default; expand to multi-product if needed
   const productId = productIds[0] ?? "unknown";
 
+  const account = await db.query.accounts.findFirst({ where: eq(accounts.id, request.accountId) });
+  const autoPublish = readSettings(account?.settings).autoPublish;
+
   const [inserted] = await db
     .insert(reviews)
     .values({
@@ -143,8 +149,13 @@ export async function POST(
       customerEmail: request.customerEmail,
       rating: body.rating,
       body: body.body,
-      status: "PENDING", // goes to moderation queue
+      // Auto-publish applies to every rating alike — never gate on rating.
+      status: autoPublish ? "APPROVED" : "PENDING",
+      publishedAt: autoPublish ? new Date() : null,
       moderationFlags: [],
+      // Came through a token tied to a real Wix order.
+      verified: true,
+      source: "REQUEST",
     })
     .returning();
 

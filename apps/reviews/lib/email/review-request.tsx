@@ -1,81 +1,58 @@
-// Email template for the review request email sent to customers.
-// Uses Resend's React email rendering.
+// Review request email, sent on the store's behalf. It should read like a
+// note from the store: store name first, one clear button, plain wording
+// that doesn't steer the rating (FTC / UK DMCC: no sentiment-led asks).
 
-import * as React from "react";
+import { REVIEW_LINK_DAYS } from "@/lib/product";
 
-interface ReviewRequestEmailProps {
-  customerName: string;
-  products: { id: string; name: string }[];
-  reviewUrl: string;
-  storeName: string;
+type Props = { storeName: string; productNames: string[]; reviewUrl: string };
+
+function esc(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-export function ReviewRequestEmail({
-  customerName,
-  products,
-  reviewUrl,
-  storeName,
-}: ReviewRequestEmailProps) {
-  return (
-    <html>
-      <head>
-        <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>How was your order?</title>
-      </head>
-      <body style={{ fontFamily: "Arial, sans-serif", color: "#333", margin: 0, padding: 0, backgroundColor: "#f9f9f9" }}>
-        <div style={{ maxWidth: 600, margin: "40px auto", backgroundColor: "#fff", borderRadius: 8, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }}>
-          <div style={{ backgroundColor: "#1a1a2e", padding: "32px 40px", textAlign: "center" as const }}>
-            <h1 style={{ color: "#fff", margin: 0, fontSize: 24 }}>{storeName}</h1>
-          </div>
-          <div style={{ padding: "40px 40px 24px" }}>
-            <h2 style={{ fontSize: 22, marginTop: 0 }}>
-              Hi {customerName}, how was your order?
-            </h2>
-            <p style={{ fontSize: 16, lineHeight: 1.6, color: "#555" }}>
-              We hope you&apos;re enjoying your recent purchase! We&apos;d love to hear what you think.
-              Your review helps other shoppers and helps us improve.
-            </p>
-            {products.length > 0 && (
-              <>
-                <p style={{ fontSize: 14, color: "#888", marginBottom: 8 }}>Items in your order:</p>
-                <ul style={{ paddingLeft: 20, marginBottom: 24 }}>
-                  {products.map((p) => (
-                    <li key={p.id} style={{ fontSize: 15, lineHeight: 1.8, color: "#444" }}>
-                      {p.name}
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
-            <div style={{ textAlign: "center" as const, margin: "32px 0" }}>
-              <a
-                href={reviewUrl}
-                style={{
-                  display: "inline-block",
-                  backgroundColor: "#4f46e5",
-                  color: "#fff",
-                  padding: "14px 32px",
-                  borderRadius: 6,
-                  fontSize: 16,
-                  fontWeight: "bold",
-                  textDecoration: "none",
-                }}
-              >
-                Write a Review
-              </a>
-            </div>
-            <p style={{ fontSize: 13, color: "#aaa", textAlign: "center" as const }}>
-              This link is personal to you and expires in 30 days.
-            </p>
-          </div>
-          <div style={{ backgroundColor: "#f3f3f3", padding: "20px 40px", textAlign: "center" as const }}>
-            <p style={{ fontSize: 12, color: "#aaa", margin: 0 }}>
-              © {new Date().getFullYear()} {storeName}. You received this because you placed an order.
-            </p>
-          </div>
-        </div>
-      </body>
-    </html>
-  );
+export function renderReviewRequestEmail({ storeName, productNames, reviewUrl }: Props) {
+  const items =
+    productNames.length === 1
+      ? productNames[0]
+      : productNames.length > 1
+        ? `${productNames.slice(0, -1).join(", ")} and ${productNames[productNames.length - 1]}`
+        : "your recent order";
+
+  const subject = `How was your order from ${storeName}?`;
+
+  const text = [
+    `Hi,`,
+    ``,
+    `You recently received ${items} from ${storeName}. Would you share an honest review? It helps other shoppers decide.`,
+    ``,
+    `Write a review: ${reviewUrl}`,
+    ``,
+    `This link works for ${REVIEW_LINK_DAYS} days. You got this email because you ordered from ${storeName}.`,
+  ].join("\n");
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(subject)}</title></head>
+<body style="margin:0;padding:0;background:#f6f7f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#1f2933">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f7f9;padding:32px 12px">
+    <tr><td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border:1px solid #e1e5ea;border-radius:12px">
+        <tr><td style="padding:28px 28px 8px;font-size:14px;color:#5f6b78">${esc(storeName)}</td></tr>
+        <tr><td style="padding:0 28px;font-size:22px;line-height:1.3;font-weight:650">How was your order?</td></tr>
+        <tr><td style="padding:14px 28px 0;font-size:16px;line-height:1.6;color:#34414e">
+          You recently received <strong>${esc(items)}</strong>. Would you share an honest review? It helps other shoppers decide, and it takes about a minute.
+        </td></tr>
+        <tr><td style="padding:24px 28px 8px">
+          <a href="${esc(reviewUrl)}" style="display:inline-block;background:#1f2933;color:#ffffff;text-decoration:none;font-weight:600;font-size:16px;padding:13px 24px;border-radius:8px">Write a review</a>
+        </td></tr>
+        <tr><td style="padding:12px 28px 28px;font-size:13px;line-height:1.5;color:#5f6b78">
+          This link works for ${REVIEW_LINK_DAYS} days. You got this email because you ordered from ${esc(storeName)}.
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+
+  return { subject, html, text };
 }

@@ -15,6 +15,13 @@
       "when": 1779447622291,
       "tag": "0001_bitter_purifiers",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791908309671,
+      "tag": "0002_verified_source_attempts",
+      "breakpoints": true
     }
   ]
 }
