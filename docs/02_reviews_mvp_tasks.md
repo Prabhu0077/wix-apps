@@ -10,6 +10,10 @@
 
 ---
 
+## Progress
+
+- 2026-10-13, commit `dbd5644` on branch `feat/mvp-revamp`: done T1.2, T1.5, T2.1, T3.1, T3.2, T4.1, T4.2, T7.1 and bugs B1, B5, B6, B8, B10, B11. Also: Wix-native redesign, rating-gate setting removed, plan page on PRD ladder. Not yet run against a database or Wix.
+
 ## 0. Bugs and gaps found in the current code
 
 Read on 13 Oct 2026. These come before new features because several of them break PRD acceptance criteria.
