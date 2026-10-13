@@ -8,6 +8,13 @@ export type Stats = {
   requestsScheduled: number;
   requestsSent: number;
   upgradeUrl: string;
+  usage: {
+    used: number;
+    limit: number;
+    skipped: number;
+    level: "ok" | "warning" | "reached";
+    resetsAt: string;
+  };
 };
 
 export const PLAN_LABEL: Record<string, string> = {

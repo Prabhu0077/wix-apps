@@ -6,6 +6,7 @@ import { and, eq } from "drizzle-orm";
 
 import { db, accounts, reviewRequests } from "@/lib/db";
 import { readSettings } from "@/lib/settings";
+import { currentPlan, requestUsage } from "@/lib/usage";
 import { verifyWixWebhook, type WixEvent } from "@/lib/wix/webhooks";
 import { getWixClient } from "@/lib/wix/service";
 
@@ -86,16 +87,36 @@ async function handleOrderFulfilled(wixInstanceId: string, event: WixEvent) {
       return;
     }
 
+    // Monthly limit (PRD R1/R11). Over the limit we still store the order as
+    // SKIPPED, so the dashboard can say how many customers were not asked.
+    // Two webhooks landing at the same moment can each see "49 used"; the
+    // limit can be passed by one or two in that case. Acceptable for a soft
+    // monthly cap; it is never under-counted.
+    const plan = await currentPlan(account);
+    const usage = await requestUsage(account.id, plan);
+    const overLimit = usage.used >= usage.limit;
+
     const delayDays = readSettings(account.settings).emailDelayDays;
-    await db.insert(reviewRequests).values({
-      accountId: account.id,
-      wixOrderId: orderId,
-      customerEmail: email,
-      productIds: [...new Set(productIds)],
-      status: "SCHEDULED",
-      scheduledFor: new Date(Date.now() + delayDays * 24 * 60 * 60 * 1000),
-    });
-    console.log(`[webhook] scheduled review request for order ${orderId} in ${delayDays} days`);
+    const inserted = await db
+      .insert(reviewRequests)
+      .values({
+        accountId: account.id,
+        wixOrderId: orderId,
+        customerEmail: email,
+        productIds: [...new Set(productIds)],
+        status: overLimit ? "SKIPPED" : "SCHEDULED",
+        skipReason: overLimit ? "monthly_limit" : null,
+        scheduledFor: new Date(Date.now() + delayDays * 24 * 60 * 60 * 1000),
+      })
+      .onConflictDoNothing({ target: [reviewRequests.accountId, reviewRequests.wixOrderId] })
+      .returning({ id: reviewRequests.id });
+
+    if (inserted.length === 0) return; // a duplicate webhook got there first
+    console.log(
+      overLimit
+        ? `[webhook] order ${orderId}: ${plan} limit of ${usage.limit} reached, request skipped`
+        : `[webhook] scheduled review request for order ${orderId} in ${delayDays} days`,
+    );
   } catch (err) {
     console.error(`[webhook] failed to process order ${orderId}`, err);
   }

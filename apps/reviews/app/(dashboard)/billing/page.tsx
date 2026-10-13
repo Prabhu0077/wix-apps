@@ -7,6 +7,7 @@
 import { Suspense, useEffect, useState } from "react";
 
 import { PLAN_LABEL, type Stats } from "@/components/dashboard/types";
+import { UsageCard } from "@/components/dashboard/UsageCard";
 import { api, ApiError, useInstance } from "@/lib/dashboard-client";
 
 // `soon` marks features that are planned but not built yet. They are labelled
@@ -74,6 +75,8 @@ function Plan() {
 
   return (
     <div className="stack">
+      <UsageCard stats={stats} />
+
       <section className="card" aria-labelledby="plans-title">
         <div className="card-head">
           <div>
@@ -81,8 +84,8 @@ function Plan() {
               You&apos;re on the {PLAN_LABEL[stats.plan] ?? stats.plan} plan
             </h2>
             <p className="card-sub">
-              Your reviews stay on your store whatever plan you&apos;re on. If you reach your monthly limit, we pause new
-              requests and tell you first.
+              Your reviews stay on your store whatever plan you&apos;re on. We warn you here at 80% of your monthly
+              requests; at the limit, new orders aren&apos;t asked for a review until next month or until you upgrade.
             </p>
           </div>
         </div>

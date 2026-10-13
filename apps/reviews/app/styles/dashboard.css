@@ -683,6 +683,51 @@ a:hover {
   color: var(--text-2);
 }
 
+/* ---------- Usage meter ---------- */
+.stack-sm {
+  display: grid;
+  gap: 10px;
+}
+.meter-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.meter-n {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 20px;
+}
+.meter {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--line);
+  overflow: hidden;
+}
+.meter-fill {
+  height: 100%;
+  border-radius: 4px;
+}
+.meter-ok {
+  background: var(--primary);
+}
+.meter-warning {
+  background: #e08a00;
+}
+.meter-reached {
+  background: var(--danger);
+}
+.notice-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.notice-row > span {
+  flex: 1 1 320px;
+}
+
 /* ---------- Small screens ---------- */
 @media (max-width: 900px) {
   .plans {

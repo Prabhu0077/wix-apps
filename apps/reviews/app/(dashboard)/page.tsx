@@ -5,6 +5,7 @@ import { Suspense, useEffect, useState } from "react";
 
 import { Stars } from "@/components/ui/Stars";
 import { type Stats } from "@/components/dashboard/types";
+import { UsageCard } from "@/components/dashboard/UsageCard";
 import { api, ApiError, useInstance } from "@/lib/dashboard-client";
 
 function Overview() {
@@ -63,6 +64,9 @@ function Overview() {
           </Link>
         </div>
       )}
+
+      {/* Near or at the limit: move the usage card up where it can't be missed. */}
+      {stats.usage.level !== "ok" && <UsageCard stats={stats} />}
 
       <section className="card" aria-labelledby="rating-title">
         <div className="card-head">
@@ -125,6 +129,8 @@ function Overview() {
           </div>
         </div>
       </section>
+
+      {stats.usage.level === "ok" && <UsageCard stats={stats} />}
 
       {!allDone && (
         <section className="card" aria-labelledby="setup-title">

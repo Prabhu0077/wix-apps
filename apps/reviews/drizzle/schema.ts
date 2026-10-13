@@ -12,9 +12,10 @@ export const reviewsSchema = pgSchema("reviews");
 
 // ---------- Enums ----------
 
-export const planEnum          = reviewsSchema.enum("plan",            ["FREE", "PRO", "GROWTH"]);
+// New enum values go at the END: Postgres can only append them cheaply (ALTER TYPE ... ADD VALUE).
+export const planEnum          = reviewsSchema.enum("plan",            ["FREE", "PRO", "GROWTH", "STARTER"]);
 export const subStatusEnum     = reviewsSchema.enum("sub_status",      ["ACTIVE", "PAST_DUE", "CANCELLED"]);
-export const requestStatusEnum = reviewsSchema.enum("request_status",  ["SCHEDULED", "SENT", "OPENED", "COMPLETED", "EXPIRED", "FAILED"]);
+export const requestStatusEnum = reviewsSchema.enum("request_status",  ["SCHEDULED", "SENT", "OPENED", "COMPLETED", "EXPIRED", "FAILED", "SKIPPED"]);
 export const reviewStatusEnum  = reviewsSchema.enum("review_status",   ["PENDING", "APPROVED", "REJECTED", "HIDDEN"]);
 export const mediaKindEnum     = reviewsSchema.enum("media_kind",      ["PHOTO", "VIDEO"]);
 export const reviewSourceEnum  = reviewsSchema.enum("review_source",   ["REQUEST", "IMPORT", "MANUAL"]);
@@ -58,12 +59,16 @@ export const reviewRequests = reviewsSchema.table(
     sentAt:        timestamp("sent_at"),
     attempts:      integer("attempts").default(0).notNull(),   // send attempts; FAILED after 5
     lastError:     text("last_error"),
+    // Why a request was not scheduled. Only "monthly_limit" for now.
+    skipReason:    text("skip_reason"),
     publicToken:   text("public_token").unique().notNull().$defaultFn(() => createId()),
     createdAt:     timestamp("created_at").defaultNow().notNull(),
   },
   (t) => ({
     byAccountStatus: index("rr_account_status_idx").on(t.accountId, t.status),
     byScheduledFor:  index("rr_scheduled_idx").on(t.scheduledFor),
+    // One request per order per store; makes duplicate webhooks a no-op.
+    onePerOrder:     uniqueIndex("rr_account_order_uq").on(t.accountId, t.wixOrderId),
   }),
 );
 

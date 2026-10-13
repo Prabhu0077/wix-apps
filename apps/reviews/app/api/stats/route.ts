@@ -7,7 +7,7 @@ import { and, count, eq, sql } from "drizzle-orm";
 import { db, accounts, reviews, reviewRequests } from "@/lib/db";
 import { env } from "@/lib/env";
 import { resolveInstanceId } from "@/lib/wix/instance";
-import { resolvePlan } from "@/lib/wix/service";
+import { currentPlan, requestUsage } from "@/lib/usage";
 
 export const runtime = "nodejs";
 
@@ -37,8 +37,9 @@ export async function GET(req: NextRequest) {
       .groupBy(reviews.rating),
     db
       .select({
-        total: count(),
-        sent: sql<number>`count(*) filter (where ${reviewRequests.status} <> 'SCHEDULED')`,
+        // SKIPPED orders were never asked, so they are not "requests".
+        total: sql<number>`count(*) filter (where ${reviewRequests.status} <> 'SKIPPED')`,
+        sent: sql<number>`count(*) filter (where ${reviewRequests.status} in ('SENT', 'OPENED', 'COMPLETED', 'EXPIRED'))`,
       })
       .from(reviewRequests)
       .where(eq(reviewRequests.accountId, account.id)),
@@ -55,7 +56,8 @@ export async function GET(req: NextRequest) {
     published += n;
   }
 
-  const plan = await resolvePlan(instanceId, account.plan as "FREE" | "PRO" | "GROWTH");
+  const plan = await currentPlan(account);
+  const usage = await requestUsage(account.id, plan);
 
   return NextResponse.json({
     plan,
@@ -66,6 +68,13 @@ export async function GET(req: NextRequest) {
     distribution,
     requestsScheduled: Number(requests[0]?.total ?? 0),
     requestsSent: Number(requests[0]?.sent ?? 0),
+    usage: {
+      used: usage.used,
+      limit: usage.limit,
+      skipped: usage.skipped,
+      level: usage.level,
+      resetsAt: usage.resetsAt,
+    },
     // Wix-hosted upgrade page; paid plans are bought only through Wix Billing.
     upgradeUrl: `https://www.wix.com/apps/upgrade/${env.WIX_APP_ID}?appInstanceId=${instanceId}`,
   });

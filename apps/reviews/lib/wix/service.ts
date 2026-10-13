@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { db, accounts } from "@/lib/db";
 import { WixClient } from "./client";
 import { decryptToken, encryptToken } from "@/lib/auth/crypto";
+import type { Plan } from "@/lib/plans";
 
 /**
  * Creates an authenticated WixClient instance for a given Wix Instance ID.
@@ -47,13 +48,12 @@ export async function getWixClient(wixInstanceId: string): Promise<WixClient> {
 
 /**
  * Determine the current plan for an instance via Wix "Get App Instance".
+ * `billing.packageName` is the plan name we set in the Wix app dashboard, so
+ * name the plans there with FREE / STARTER / PRO / GROWTH in them.
  * Falls back to the provided plan if the lookup fails.
- * Docs: https://dev.wix.com/docs/rest/app-management/app-instance/get-app-instance
+ * Docs: https://dev.wix.com/docs/api-reference/app-management/app-instance/get-app-instance
  */
-export async function resolvePlan(
-  wixInstanceId: string,
-  fallback: "FREE" | "PRO" | "GROWTH" = "FREE",
-): Promise<"FREE" | "PRO" | "GROWTH"> {
+export async function resolvePlan(wixInstanceId: string, fallback: Plan = "FREE"): Promise<Plan> {
   try {
     const client = await getWixClient(wixInstanceId);
     const data = await client.get<{
@@ -63,8 +63,9 @@ export async function resolvePlan(
     if (!inst || inst.isFree !== false) return "FREE";
     const pkg = (inst.billing?.packageName ?? "").toUpperCase();
     if (pkg.includes("GROWTH")) return "GROWTH";
-    if (pkg.includes("STARTER") || pkg.includes("PRO")) return "PRO";
-    return "PRO"; // paid, unknown package → lowest paid tier
+    if (pkg.includes("PRO")) return "PRO";
+    if (pkg.includes("STARTER")) return "STARTER";
+    return "STARTER"; // paid, unknown package → lowest paid tier
   } catch {
     return fallback;
   }
