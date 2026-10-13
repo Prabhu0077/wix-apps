@@ -16,9 +16,15 @@
 
 ---
 
-## 2026-10-13 — Free-plan cap in GOTCHAS was not actually implemented
+## 2026-10-13 — Monthly request limit: where it lives and what can break it
 
-The entry below says the 50-requests/month cap is enforced in the scheduler. As of 13 Oct 2026 no code checks it (see `docs/02_reviews_mvp_tasks.md` B2, task T1.3). Treat the older entry as the intended design, not the current state. *(Hit by: Claude, 2026-10-13.)*
+The limit is checked in one place: `handleOrderFulfilled` in `app/api/wix/webhook/route.ts`, using `lib/usage.ts` (count of this UTC month's `review_requests` that are not `SKIPPED`) and `lib/plans.ts` (limits per plan). Over the limit the order is stored with `status=SKIPPED, skip_reason=monthly_limit` so the dashboard can say how many customers weren't asked. **Any new way of creating requests (manual send, reminders, import of old orders) must call `requestUsage()` first**, or that path is uncapped. The plan comes live from Wix `billing.packageName`, matched by the words GROWTH / PRO / STARTER — so the plan names in the Wix app dashboard must contain those words, or a paid merchant falls back to Starter limits. Two webhooks at the same instant can pass the limit by one or two; accepted. The older 2026-05-21 entry below (plan via an `app-instance#updated` webhook) describes a design that was never built. *(Hit by: Claude, 2026-10-13.)*
+
+---
+
+## 2026-10-13 — Migration 0003 adds a unique index that fails on duplicate orders
+
+`0003_plan_limits.sql` creates `rr_account_order_uq` on `review_requests(account_id, wix_order_id)`. Before this, duplicate webhooks could create two rows for one order. If the migration fails on the index, find duplicates with `select account_id, wix_order_id, count(*) from reviews.review_requests group by 1,2 having count(*) > 1;` and remove the extra rows (keep the oldest) before re-running. Run 0002 and 0003 together; both only add things. *(Hit by: Claude, 2026-10-13.)*
 
 ---
 

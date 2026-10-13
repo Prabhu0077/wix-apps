@@ -13,6 +13,8 @@
 ## Progress
 
 - 2026-10-13, commit `dbd5644` on branch `feat/mvp-revamp`: done T1.2, T1.5, T2.1, T3.1, T3.2, T4.1, T4.2, T7.1 and bugs B1, B5, B6, B8, B10, B11. Also: Wix-native redesign, rating-gate setting removed, plan page on PRD ladder. Not yet run against a database or Wix.
+- 2026-10-13, commit `11c192a`: review dates show when the review was written (`createdAt`), with relative labels; was showing publish date.
+- 2026-10-13, T1.3 done (+ T9.1, B2, B9): monthly request limit per plan enforced in the webhook; over-limit orders stored as `SKIPPED`; usage card with 80% warning and "limit reached" state on Overview and Plan; STARTER added to the plan enum; `resolvePlan` maps all four plans; unique index stops duplicate requests per order. Migration `0003_plan_limits` generated, not run.
 
 ## 0. Bugs and gaps found in the current code
 

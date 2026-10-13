@@ -6,6 +6,7 @@ import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 
 import { db, accounts, reviewRequests, reviews, reviewMedia } from "@/lib/db";
+import { getProductSummaries, type ProductSummary } from "@/lib/wix/catalog";
 import { getWixClient } from "@/lib/wix/service";
 import { env } from "@/lib/env";
 import { REVIEW_LINK_DAYS } from "@/lib/product";
@@ -28,7 +29,8 @@ export async function GET(
     where: eq(reviewRequests.publicToken, token),
   });
 
-  if (!request) {
+  // SKIPPED (over the monthly limit) and FAILED requests were never emailed.
+  if (!request || request.status === "SKIPPED" || request.status === "FAILED") {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
 
@@ -40,14 +42,6 @@ export async function GET(
     return NextResponse.json({ error: "already_submitted" }, { status: 409 });
   }
 
-  // Try to resolve product names from Wix using the merchant's stored tokens.
-  // Fail gracefully — the form still shows even if product names can't be fetched.
-  const productIds = request.productIds as string[];
-  let products: { id: string; name: string; imageUrl?: string }[] = productIds.map((id) => ({
-    id,
-    name: "Your recent purchase",
-  }));
-
   const account = await db.query.accounts.findFirst({
     where: eq(accounts.id, request.accountId),
   });
@@ -56,29 +50,19 @@ export async function GET(
       ? ((account!.settings as Record<string, unknown>).storeName as string)
       : null;
 
-  try {
-    if (account) {
+  // Product names and images from Wix (Catalog V1 or V3). The form still
+  // works with a generic label if Wix can't be reached.
+  const productIds = request.productIds as string[];
+  let found = new Map<string, ProductSummary>();
+  if (account) {
+    try {
       const wixClient = await getWixClient(account.wixInstanceId);
-      const resolved: typeof products = [];
-      for (const pid of productIds) {
-        try {
-          const res = await wixClient.get<{
-            product?: { name?: string; media?: { mainMedia?: { image?: { url?: string } } } };
-          }>(`https://www.wixapis.com/stores/v1/products/${pid}`);
-          resolved.push({
-            id: pid,
-            name: res?.product?.name ?? "Your recent purchase",
-            imageUrl: res?.product?.media?.mainMedia?.image?.url,
-          });
-        } catch {
-          resolved.push({ id: pid, name: "Your recent purchase" });
-        }
-      }
-      if (resolved.length > 0) products = resolved;
+      found = await getProductSummaries(wixClient, account.wixInstanceId, productIds);
+    } catch (err) {
+      console.warn("[review/token] could not resolve product names:", err);
     }
-  } catch (err) {
-    console.warn("[review/token] could not resolve product names:", err);
   }
+  const products = productIds.map((id) => found.get(id) ?? { id, name: "Your recent purchase" });
 
   // The shopper's email is not returned: the page never needs it.
   return NextResponse.json({ storeName, products });
@@ -108,7 +92,8 @@ export async function POST(
     where: eq(reviewRequests.publicToken, token),
   });
 
-  if (!request) {
+  // SKIPPED (over the monthly limit) and FAILED requests were never emailed.
+  if (!request || request.status === "SKIPPED" || request.status === "FAILED") {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
 

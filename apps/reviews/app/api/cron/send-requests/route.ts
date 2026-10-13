@@ -12,6 +12,7 @@ import { db, accounts, reviewRequests } from "@/lib/db";
 import { env } from "@/lib/env";
 import { renderReviewRequestEmail } from "@/lib/email/review-request";
 import { readSettings } from "@/lib/settings";
+import { getProductSummaries } from "@/lib/wix/catalog";
 import { getWixClient } from "@/lib/wix/service";
 
 export const runtime = "nodejs";
@@ -46,17 +47,13 @@ export async function GET(req: NextRequest) {
           : settings.fromName;
 
       // Product names are a nice-to-have; send even if Wix can't be reached.
-      const productIds = request.productIds as string[];
       let productNames: string[] = [];
       try {
         const client = await getWixClient(account.wixInstanceId);
-        for (const pid of productIds) {
-          const res = await client.get<{ product?: { name?: string } }>(`https://www.wixapis.com/stores/v1/products/${pid}`);
-          if (res?.product?.name) productNames.push(res.product.name);
-        }
+        const found = await getProductSummaries(client, account.wixInstanceId, request.productIds as string[]);
+        productNames = [...found.values()].map((p) => p.name);
       } catch (wixErr) {
         console.warn(`[cron] product names unavailable for ${request.id}:`, wixErr);
-        productNames = [];
       }
 
       const { subject, html, text } = renderReviewRequestEmail({
