@@ -21,6 +21,18 @@
 - 2026-10-13, founder yes: migrations 0002, 0003, 0004 applied to Neon and checked (new columns, enum values, `email_suppressions`, unique indexes present; all tables empty).
 - 2026-10-13, T7.3 done in code (B12): AppRemoved webhook marks the store uninstalled, deletes Wix tokens and cancels scheduled emails; AppInstalled / OAuth reinstall cancels deletion; daily `purge-uninstalled` cron deletes the store and all its data (R2 files first) 29 days after uninstall; widget hides for uninstalled stores; privacy page updated. Migration `0005_uninstall_purge` applied to Neon on 13 Oct (founder yes; checked after). Open: confirm the AppRemoved eventType with a real uninstall.
 - 2026-10-13, T1.4 done in code (B5 fully): store name (business name, else site name) and postal address read from Wix Site Properties at install and refreshed before sending (weekly; every 10 min on the dashboard while the address is missing). Cached in `accounts.settings` as storeName / storeAddress / profileFetchedAt via a jsonb merge. Email footer shows "<store>, <address>" (CAN-SPAM). Overview shows a warning when the merchant has no address in Wix Business Info. No migration needed.
+- 2026-10-14, "finish all the work" batch (one commit on `feat/mvp-revamp`):
+  - T8.4 setup-check card on Overview (`/api/health`): connection, Stores catalog, order events (`lastWebhookAt`), email failures, business address, widget seen (`widgetSeenAt`).
+  - T4.3 Reviews: star-rating filter, "Show more" paging, empty states per filter.
+  - T5.2 storefront widget rebuilt as plain server-rendered HTML (`/widget` route handler): about 12 KB per page, 1 KB of script, no React (was 105 KB of framework JS). Checked: sorting, "Read more", 360 px, escaping. T5.3 empty state kept.
+  - B15 fixed + T2.4: upload signing checks the token is an open request, photos only (JPG/PNG/WebP), 10 MB; review form photo picker (up to 5 per product) appears only when R2 is configured. Tested on the real built page with mocked APIs.
+  - T2.3 checked on the real built page at 360 px (no horizontal scroll, 44 px star targets).
+  - T10.1 review-policy text with "Copy" button on Settings; T10.2 `incentivized` flag stored, labelled on widget and dashboard, exported; T10.3 terms page, linked from help, privacy and the dashboard footer.
+  - T8.1 CSV import on the Reviews tab: column mapping with guesses for common exports, product match ID → SKU (V1 only) → URL/slug → name, batches of 500 (no row limit), report of rows that failed, re-import adds nothing (`source_ref` unique per store). 1,000-row test file passes. T8.2 one-click import from Wix Reviews (Query Reviews API, keeps moderation status, dates, replies, photo links).
+  - T1.1 `fixtures/order-fulfilled.json` + `scripts/post-test-webhook.mjs` (local only); checked against a dev server.
+  - `pnpm test` (tsx) runs `tests/core.test.ts` and `tests/import.test.ts`. `next build` passes on the PC.
+  - Migration `0006_incentive_source_ref` generated, **not run**.
+  - Still open, founder or live store needed: T5.1, T6.2, T7.2, T9.2 (Wix app dashboard), T3.3/T9.3 nothing left in code, R13 JSON-LD (test store published), confirming the AppRemoved event name, R2 activation + bucket CORS for photo uploads.
 
 ## 0. Bugs and gaps found in the current code
 
