@@ -10,6 +10,18 @@
 
 ---
 
+## 2026-10-13 — `pnpm install` silently skips devDependencies on the founder's PC
+
+`NODE_ENV=production` is set system-wide on the founder's Windows PC, so `pnpm install` prints "devDependencies: skipped" and `tsc`, `drizzle-kit` and `eslint` are missing — type-check then fails with a confusing npx "tsc@2.0.4" prompt. **Fix:** `set NODE_ENV=development&& set CI=true&& pnpm install --prod=false` (CI=true avoids pnpm's interactive "reinstall node_modules?" prompt). Also: `pnpm-lock.yaml` had drifted from `package.json` (tailwind entries), so `--frozen-lockfile` failed; the refreshed lockfile was committed. *(Hit by: Claude, 2026-10-13.)*
+
+---
+
+## 2026-10-13 — Free-plan cap in GOTCHAS was not actually implemented
+
+The entry below says the 50-requests/month cap is enforced in the scheduler. As of 13 Oct 2026 no code checks it (see `docs/02_reviews_mvp_tasks.md` B2, task T1.3). Treat the older entry as the intended design, not the current state. *(Hit by: Claude, 2026-10-13.)*
+
+---
+
 ## 2026-05-22 — Playwright locator `.count()` returns `0` before render
 
 When automating pages, calling `locator.count()` immediately after navigation returns `0` if the page hasn't fully rendered. Instead of checking counts, use Playwright's auto-waiting locators directly (e.g. `locator.click(timeout=10000)`) or wait for visibility explicitly using `locator.wait_for(state="visible")`. *(Hit by: Antigravity, 2026-05-22.)*
