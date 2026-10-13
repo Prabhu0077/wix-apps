@@ -6,13 +6,20 @@
 
 import { REVIEW_LINK_DAYS } from "@/lib/product";
 
-type Props = { storeName: string; productNames: string[]; reviewUrl: string; unsubscribeUrl: string };
+type Props = {
+  storeName: string;
+  productNames: string[];
+  reviewUrl: string;
+  unsubscribeUrl: string;
+  /** Sender's postal address (CAN-SPAM). Null if the merchant hasn't set one in Wix Business Info. */
+  storeAddress?: string | null;
+};
 
 function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-export function renderReviewRequestEmail({ storeName, productNames, reviewUrl, unsubscribeUrl }: Props) {
+export function renderReviewRequestEmail({ storeName, productNames, reviewUrl, unsubscribeUrl, storeAddress }: Props) {
   const items =
     productNames.length === 1
       ? productNames[0]
@@ -31,6 +38,7 @@ export function renderReviewRequestEmail({ storeName, productNames, reviewUrl, u
     ``,
     `This link works for ${REVIEW_LINK_DAYS} days. You got this email because you ordered from ${storeName}.`,
     `Don't want review requests from ${storeName}? Unsubscribe: ${unsubscribeUrl}`,
+    ...(storeAddress ? [``, `${storeName}, ${storeAddress}`] : []),
   ].join("\n");
 
   const html = `<!DOCTYPE html>
@@ -50,7 +58,9 @@ export function renderReviewRequestEmail({ storeName, productNames, reviewUrl, u
         </td></tr>
         <tr><td style="padding:12px 28px 28px;font-size:13px;line-height:1.5;color:#5f6b78">
           This link works for ${REVIEW_LINK_DAYS} days. You got this email because you ordered from ${esc(storeName)}.<br>
-          Don't want review requests from ${esc(storeName)}? <a href="${esc(unsubscribeUrl)}" style="color:#5f6b78">Unsubscribe</a>
+          Don't want review requests from ${esc(storeName)}? <a href="${esc(unsubscribeUrl)}" style="color:#5f6b78">Unsubscribe</a>${
+            storeAddress ? `<br><br>${esc(storeName)}, ${esc(storeAddress)}` : ""
+          }
         </td></tr>
       </table>
     </td></tr>

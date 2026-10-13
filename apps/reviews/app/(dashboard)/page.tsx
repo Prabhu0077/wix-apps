@@ -65,6 +65,14 @@ function Overview() {
         </div>
       )}
 
+      {stats.storeAddressMissing && (
+        <div className="notice notice-warn">
+          <strong>Add your business address in Wix.</strong> Review request emails show your store&apos;s postal address,
+          which email law in the US and other countries requires. Add it in your Wix dashboard under Settings › Business
+          Info and this message goes away on its own.
+        </div>
+      )}
+
       {/* Near or at the limit: move the usage card up where it can't be missed. */}
       {stats.usage.level !== "ok" && <UsageCard stats={stats} />}
 

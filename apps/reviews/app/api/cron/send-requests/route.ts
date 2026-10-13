@@ -11,7 +11,8 @@ import { Resend } from "resend";
 import { db, accounts, reviewRequests } from "@/lib/db";
 import { env } from "@/lib/env";
 import { renderReviewRequestEmail } from "@/lib/email/review-request";
-import { readSettings, storeNameFrom } from "@/lib/settings";
+import { readSettings } from "@/lib/settings";
+import { getStoreProfile } from "@/lib/store-profile";
 import { isSuppressed } from "@/lib/suppression";
 import { getProductSummaries } from "@/lib/wix/catalog";
 import { getWixClient } from "@/lib/wix/service";
@@ -61,7 +62,8 @@ export async function GET(req: NextRequest) {
       }
 
       const settings = readSettings(account.settings);
-      const storeName = storeNameFrom(account.settings) ?? settings.fromName;
+      const profile = await getStoreProfile(account);
+      const storeName = profile.storeName ?? settings.fromName;
 
       // Product names are a nice-to-have; send even if Wix can't be reached.
       let productNames: string[] = [];
@@ -80,6 +82,7 @@ export async function GET(req: NextRequest) {
         productNames,
         reviewUrl: `${base}/review/${request.publicToken}`,
         unsubscribeUrl,
+        storeAddress: profile.storeAddress,
       });
 
       const result = await resend.emails.send({

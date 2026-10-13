@@ -7,6 +7,7 @@ import { and, count, eq, sql } from "drizzle-orm";
 import { db, accounts, reviews, reviewRequests } from "@/lib/db";
 import { env } from "@/lib/env";
 import { resolveInstanceId } from "@/lib/wix/instance";
+import { getStoreProfile } from "@/lib/store-profile";
 import { currentPlan, requestUsage } from "@/lib/usage";
 
 export const runtime = "nodejs";
@@ -58,6 +59,10 @@ export async function GET(req: NextRequest) {
 
   const plan = await currentPlan(account);
   const usage = await requestUsage(account.id, plan);
+  // Wix Business Info (name, postal address). Re-checked every 10 minutes
+  // while the address is missing, otherwise weekly.
+  const cachedAddress = (account.settings as Record<string, unknown> | null)?.storeAddress;
+  const profile = await getStoreProfile(account, cachedAddress ? undefined : 10 * 60 * 1000);
 
   return NextResponse.json({
     plan,
@@ -68,6 +73,7 @@ export async function GET(req: NextRequest) {
     distribution,
     requestsScheduled: Number(requests[0]?.total ?? 0),
     requestsSent: Number(requests[0]?.sent ?? 0),
+    storeAddressMissing: !profile.storeAddress,
     usage: {
       used: usage.used,
       limit: usage.limit,

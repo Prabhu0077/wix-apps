@@ -8,6 +8,7 @@ export type Stats = {
   requestsScheduled: number;
   requestsSent: number;
   upgradeUrl: string;
+  storeAddressMissing: boolean;
   usage: {
     used: number;
     limit: number;

@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, accounts } from "@/lib/db";
 import { exchangeCodeForToken } from "@/lib/wix/oauth";
 import { encryptToken } from "@/lib/auth/crypto";
+import { refreshStoreProfile } from "@/lib/store-profile";
 
 export const runtime = "nodejs";
 
@@ -56,7 +57,7 @@ export async function GET(req: NextRequest) {
   const encryptedRefreshToken = encryptToken(tokens.refresh_token);
   const tokenExpiresAt = new Date(Date.now() + tokens.expires_in * 1000);
 
-  await db
+  const [account] = await db
     .insert(accounts)
     .values({
       wixInstanceId: instanceId,
@@ -77,7 +78,16 @@ export async function GET(req: NextRequest) {
         wixTokenExpiresAt: tokenExpiresAt,
         uninstalledAt: null, // reinstall within 30 days cancels deletion
       },
-    });
+    })
+    .returning({ id: accounts.id, wixInstanceId: accounts.wixInstanceId });
+
+  // Store name and postal address for emails (T1.4). Best effort: the send
+  // job retries before the first email if this fails.
+  if (account) {
+    await refreshStoreProfile(account).catch((err) =>
+      console.warn("[install] store profile not fetched yet:", err instanceof Error ? err.message : err),
+    );
+  }
 
   console.log("[install] tokens successfully stored for instance", instanceId, "expires_in", tokens.expires_in);
 
