@@ -83,6 +83,38 @@ a {
   display: grid;
   gap: 22px;
 }
+.rf-form {
+  display: grid;
+  gap: 22px;
+}
+.rf-fieldset {
+  border: none;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.rf-fieldset legend {
+  padding: 0;
+}
+/* One block per product. A single-product order shows no box around it. */
+.rf-item {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.rf-item-single {
+  padding: 0;
+  border: none;
+}
+.rf-item-problem {
+  border-color: var(--danger);
+}
+.rf-item-error {
+  color: var(--danger);
+  font-size: 14px;
+}
 .rf-product {
   display: flex;
   gap: 12px;
@@ -97,6 +129,7 @@ a {
 }
 .rf-product-name {
   font-weight: 600;
+  overflow-wrap: anywhere;
 }
 .rf-field {
   display: grid;
@@ -261,4 +294,25 @@ a {
   margin: 4px 0 0;
   color: #34414e;
   max-width: 68ch;
+}
+
+/* Small phones (360 px): keep five 44 px star targets inside a product box. */
+@media (max-width: 400px) {
+  .rf-card {
+    padding: 18px 14px;
+  }
+  .rf-item {
+    padding: 14px 12px;
+  }
+  .rate {
+    gap: 2px;
+  }
+  .rate label {
+    width: 44px;
+    height: 44px;
+  }
+  .rate label svg {
+    width: 32px;
+    height: 32px;
+  }
 }

@@ -15,6 +15,8 @@
 - 2026-10-13, commit `dbd5644` on branch `feat/mvp-revamp`: done T1.2, T1.5, T2.1, T3.1, T3.2, T4.1, T4.2, T7.1 and bugs B1, B5, B6, B8, B10, B11. Also: Wix-native redesign, rating-gate setting removed, plan page on PRD ladder. Not yet run against a database or Wix.
 - 2026-10-13, commit `11c192a`: review dates show when the review was written (`createdAt`), with relative labels; was showing publish date.
 - 2026-10-13, T1.3 done (+ T9.1, B2, B9): monthly request limit per plan enforced in the webhook; over-limit orders stored as `SKIPPED`; usage card with 80% warning and "limit reached" state on Overview and Plan; STARTER added to the plan enum; `resolvePlan` maps all four plans; unique index stops duplicate requests per order. Migration `0003_plan_limits` generated, not run.
+- 2026-10-13, T6.1 done in code (B3): `lib/wix/catalog.ts` reads product name and image on Catalog V1 or V3 (version check, fallback V3 then V1); cron email and review form use it. Review links for SKIPPED/FAILED requests return not found. Still needed: add the three catalog permissions and tick V3 compatibility in the Wix app dashboard (T6.2), then test on the V3 test store.
+- 2026-10-13, T2.2 done in code (B4): review form shows one block per product; shopper rates any and skips the rest; API saves one review per rated product. The request is claimed (status COMPLETED) before saving, so a double tap can't save twice; on a save error the claim and any saved rows are undone. Product IDs must belong to the order; media keys must start with `reviews/<token>/`. 360 px layout checked on a static preview (no horizontal scroll, 44 px star targets) — T2.3 still needs a check on the real page.
 
 ## 0. Bugs and gaps found in the current code
 
@@ -35,6 +37,7 @@ Read on 13 Oct 2026. These come before new features because several of them brea
 | B11 | Webhook signature check is real (`jose`) but bypasses on failure when `NODE_ENV` ≠ production | `lib/wix/webhooks.ts` | Any preview deploy with a wrong env accepts fake webhooks | T7.1 |
 | B12 | Install route is a stub; no uninstall handling or data deletion | `app/api/wix/install`, webhook `#removed` | GDPR 30-day deletion rule; app review | T7.3 |
 | B13 | `NODE_ENV=production` is set system-wide on the founder's PC, so `pnpm install` skips devDependencies | PC environment | `tsc`, `drizzle-kit`, `eslint` missing locally | Note in GOTCHAS |
+| B15 | Upload-signature route signs R2 uploads for **any** token string (never checks the review request exists or is open); 100 MB limit | `app/api/public/review/upload-signature/route.ts` | Anyone could fill our bucket once R2 is on | T2.4 (must fix before R2 activation) |
 | B14 | `pnpm-lock.yaml` was out of date with `package.json` (tailwind entries) | repo root | Clean installs fail with `--frozen-lockfile` | Commit the refreshed lockfile |
 
 ---

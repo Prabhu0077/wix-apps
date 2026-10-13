@@ -2,7 +2,7 @@
 // proof the request is legitimate. Treat all input as hostile.
 
 import { NextRequest, NextResponse } from "next/server";
-import { eq, and } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 
 import { db, accounts, reviewRequests, reviews, reviewMedia } from "@/lib/db";
@@ -68,26 +68,31 @@ export async function GET(
   return NextResponse.json({ storeName, products });
 }
 
-const SubmitSchema = z.object({
+// One block per product the shopper chose to review. Products they skip are
+// simply absent. Text is required with a rating (PRD R2).
+const ItemSchema = z.object({
+  productId: z.string().min(1).max(200),
   rating: z.number().int().min(1).max(5),
-  body: z.string().min(10, "Review must be at least 10 characters").max(5000),
-  customerName: z.string().min(1, "Name is required").max(120),
-  // Media is uploaded directly to R2 via signed URL — the client sends back the keys.
-  mediaKeys: z
-    .array(z.string().max(500))
-    .max(6)
-    .optional()
-    .default([]),
+  body: z.string().trim().min(10, "Review must be at least 10 characters").max(5000),
+  // Media is uploaded straight to R2 via signed URL; the client sends back the keys.
+  mediaKeys: z.array(z.string().max(500)).max(5).optional().default([]),
 });
 
-// POST — actual review submission.
+const SubmitSchema = z.object({
+  customerName: z.string().trim().min(1, "Name is required").max(120),
+  items: z.array(ItemSchema).min(1).max(20),
+});
+
+// A request can be answered once, and only if it was (or is about to be) emailed.
+const OPEN_STATUSES = ["SCHEDULED", "SENT", "OPENED"] as const;
+
+// POST — submit reviews for one or more products in the order.
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ token: string }> },
 ) {
   const { token } = await params;
 
-  // Look up the ReviewRequest
   const request = await db.query.reviewRequests.findFirst({
     where: eq(reviewRequests.publicToken, token),
   });
@@ -96,11 +101,9 @@ export async function POST(
   if (!request || request.status === "SKIPPED" || request.status === "FAILED") {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
-
   if (isExpired(request.createdAt)) {
     return NextResponse.json({ error: "expired" }, { status: 410 });
   }
-
   if (request.status === "COMPLETED") {
     return NextResponse.json({ error: "already_submitted" }, { status: 409 });
   }
@@ -109,58 +112,89 @@ export async function POST(
   try {
     body = SubmitSchema.parse(await req.json());
   } catch (err) {
-    return NextResponse.json(
-      { error: "validation_failed", detail: String(err) },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "validation_failed", detail: String(err) }, { status: 400 });
   }
 
-  // Insert one Review per product in the order
-  const productIds = request.productIds as string[];
-
-  // We insert for the first product by default; expand to multi-product if needed
-  const productId = productIds[0] ?? "unknown";
-
-  const account = await db.query.accounts.findFirst({ where: eq(accounts.id, request.accountId) });
-  const autoPublish = readSettings(account?.settings).autoPublish;
-
-  const [inserted] = await db
-    .insert(reviews)
-    .values({
-      accountId: request.accountId,
-      productId,
-      wixOrderId: request.wixOrderId,
-      customerName: body.customerName,
-      customerEmail: request.customerEmail,
-      rating: body.rating,
-      body: body.body,
-      // Auto-publish applies to every rating alike — never gate on rating.
-      status: autoPublish ? "APPROVED" : "PENDING",
-      publishedAt: autoPublish ? new Date() : null,
-      moderationFlags: [],
-      // Came through a token tied to a real Wix order.
-      verified: true,
-      source: "REQUEST",
-    })
-    .returning();
-
-  // Attach media rows if any keys were provided
-  if (body.mediaKeys && body.mediaKeys.length > 0 && env.R2_PUBLIC_BASE_URL) {
-    await db.insert(reviewMedia).values(
-      body.mediaKeys.map((key) => ({
-        reviewId: inserted.id,
-        kind: key.match(/\.(mp4|mov|webm)$/i) ? ("VIDEO" as const) : ("PHOTO" as const),
-        r2Key: key,
-        publicUrl: `${env.R2_PUBLIC_BASE_URL}/${key}`,
-      })),
-    );
+  // Every product must belong to this order, once; media keys must be ones
+  // issued for this token (reviews/<token>/...), never another shopper's file.
+  const orderProducts = new Set(request.productIds as string[]);
+  const seen = new Set<string>();
+  for (const item of body.items) {
+    if (!orderProducts.has(item.productId) || seen.has(item.productId)) {
+      return NextResponse.json({ error: "validation_failed", detail: "unknown_or_duplicate_product" }, { status: 400 });
+    }
+    seen.add(item.productId);
+    if (item.mediaKeys.some((k) => !k.startsWith(`reviews/${token}/`) || k.includes(".."))) {
+      return NextResponse.json({ error: "validation_failed", detail: "bad_media_key" }, { status: 400 });
+    }
   }
 
-  // Mark the review request as COMPLETED
-  await db
+  // Claim the request first so a double tap or a second tab can't save the
+  // reviews twice. If saving then fails, the claim is undone.
+  const claimed = await db
     .update(reviewRequests)
     .set({ status: "COMPLETED" })
-    .where(eq(reviewRequests.id, request.id));
+    .where(and(eq(reviewRequests.id, request.id), inArray(reviewRequests.status, [...OPEN_STATUSES])))
+    .returning({ id: reviewRequests.id });
+  if (claimed.length === 0) {
+    return NextResponse.json({ error: "already_submitted" }, { status: 409 });
+  }
 
-  return NextResponse.json({ ok: true, reviewId: inserted.id }, { status: 201 });
+  let savedIds: string[] = [];
+  try {
+    const account = await db.query.accounts.findFirst({ where: eq(accounts.id, request.accountId) });
+    const autoPublish = readSettings(account?.settings).autoPublish;
+    const now = new Date();
+
+    const inserted = await db
+      .insert(reviews)
+      .values(
+        body.items.map((item) => ({
+          accountId: request.accountId,
+          productId: item.productId,
+          wixOrderId: request.wixOrderId,
+          customerName: body.customerName,
+          customerEmail: request.customerEmail,
+          rating: item.rating,
+          body: item.body,
+          // Auto-publish applies to every rating alike — never gate on rating.
+          status: autoPublish ? ("APPROVED" as const) : ("PENDING" as const),
+          publishedAt: autoPublish ? now : null,
+          moderationFlags: [],
+          // Came through a token tied to a real Wix order.
+          verified: true,
+          source: "REQUEST" as const,
+        })),
+      )
+      .returning({ id: reviews.id, productId: reviews.productId });
+    savedIds = inserted.map((r) => r.id);
+
+    const r2Base = env.R2_PUBLIC_BASE_URL;
+    if (r2Base) {
+      const idByProduct = new Map(inserted.map((r) => [r.productId, r.id]));
+      const media = body.items.flatMap((item) =>
+        item.mediaKeys.map((key) => ({
+          reviewId: idByProduct.get(item.productId)!,
+          kind: /\.(mp4|mov|webm)$/i.test(key) ? ("VIDEO" as const) : ("PHOTO" as const),
+          r2Key: key,
+          publicUrl: `${r2Base}/${key}`,
+        })),
+      );
+      if (media.length > 0) await db.insert(reviewMedia).values(media);
+    }
+
+    return NextResponse.json({ ok: true, saved: inserted.length }, { status: 201 });
+  } catch (err) {
+    console.error(`[review/token] save failed for request ${request.id}`, err);
+    // Undo partial work so the shopper can simply try again.
+    if (savedIds.length > 0) {
+      await db.delete(reviews).where(inArray(reviews.id, savedIds)).catch(() => undefined);
+    }
+    await db
+      .update(reviewRequests)
+      .set({ status: request.status })
+      .where(eq(reviewRequests.id, request.id))
+      .catch(() => undefined);
+    return NextResponse.json({ error: "save_failed" }, { status: 500 });
+  }
 }

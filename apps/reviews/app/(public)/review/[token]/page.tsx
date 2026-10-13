@@ -4,7 +4,9 @@
 // It belongs to the merchant's store: store name first, neutral styling, no
 // app branding beyond the footer line. No login — the token is the proof.
 //
-// Photo upload stays off until Cloudflare R2 is active (task T2.4).
+// One block per product in the order. The shopper rates any products they
+// want to review and can skip the rest; each rated product becomes its own
+// review. Photo upload stays off until Cloudflare R2 is active (task T2.4).
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
@@ -13,6 +15,7 @@ import { REVIEW_LINK_DAYS } from "@/lib/product";
 
 type Product = { id: string; name: string; imageUrl?: string };
 type Context = { storeName: string | null; products: Product[] };
+type Draft = { rating: number; body: string };
 
 const LOAD_ERRORS: Record<string, string> = {
   not_found: "This review link doesn't work. Check that you opened the full link from the email.",
@@ -23,19 +26,66 @@ const LOAD_ERRORS: Record<string, string> = {
 const RATING_WORDS = ["", "Poor", "Fair", "Okay", "Good", "Excellent"];
 const STAR_PATH =
   "M10 1.6l2.47 5.3 5.8.68-4.29 3.96 1.13 5.73L10 14.4l-5.11 2.87 1.13-5.73L1.73 7.58l5.8-.68z";
+const MIN_TEXT = 10;
+const EMPTY: Draft = { rating: 0, body: "" };
+
+function StarInput({
+  idPrefix,
+  label,
+  value,
+  onChange,
+}: {
+  idPrefix: string;
+  label: string;
+  value: number;
+  onChange: (n: number) => void;
+}) {
+  const [hover, setHover] = useState(0);
+  const shown = hover || value;
+  return (
+    <fieldset className="rf-field rf-fieldset">
+      <legend className="rf-label">{label}</legend>
+      <div className="rate" onMouseLeave={() => setHover(0)}>
+        {[1, 2, 3, 4, 5].map((n) => (
+          <span key={n}>
+            <input
+              type="radio"
+              id={`${idPrefix}-star-${n}`}
+              name={`${idPrefix}-rating`}
+              value={n}
+              checked={value === n}
+              onChange={() => onChange(n)}
+            />
+            <label
+              htmlFor={`${idPrefix}-star-${n}`}
+              onMouseEnter={() => setHover(n)}
+              aria-label={`${n} star${n > 1 ? "s" : ""}, ${RATING_WORDS[n]}`}
+            >
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <path d={STAR_PATH} className={n <= shown ? "star-on" : "star-off"} />
+              </svg>
+            </label>
+          </span>
+        ))}
+      </div>
+      <p className="rate-word" aria-live="polite">
+        {RATING_WORDS[shown]}
+      </p>
+    </fieldset>
+  );
+}
 
 export default function ReviewFormPage() {
   const { token } = useParams<{ token: string }>();
   const [ctx, setCtx] = useState<Context | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const [rating, setRating] = useState(0);
-  const [hover, setHover] = useState(0);
+  const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [name, setName] = useState("");
-  const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
-  const [sent, setSent] = useState(false);
+  const [savedCount, setSavedCount] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [problems, setProblems] = useState<Record<string, string>>({});
 
   useEffect(() => {
     fetch(`/api/public/review/${token}`)
@@ -47,30 +97,69 @@ export default function ReviewFormPage() {
       .catch(() => setLoadError("We couldn't open this review form. Check your connection and try again."));
   }, [token]);
 
+  const draft = (id: string): Draft => drafts[id] ?? EMPTY;
+  const update = (id: string, patch: Partial<Draft>) =>
+    setDrafts((d) => ({ ...d, [id]: { ...(d[id] ?? EMPTY), ...patch } }));
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (rating === 0) return setError("Choose a star rating.");
+    if (!ctx) return;
+    const single = ctx.products.length === 1;
+
+    // A product counts as started once it has a rating or some text.
+    const started = ctx.products.filter((p) => draft(p.id).rating > 0 || draft(p.id).body.trim() !== "");
+    const found: Record<string, string> = {};
+    for (const p of started) {
+      const d = draft(p.id);
+      if (d.rating === 0) found[p.id] = "Choose a star rating.";
+      else if (d.body.trim().length < MIN_TEXT) found[p.id] = `Write at least a sentence (${MIN_TEXT} characters or more).`;
+    }
+    setProblems(found);
+
+    if (started.length === 0) {
+      return setError(single ? "Choose a star rating." : "Rate at least one product.");
+    }
+    const problemCount = Object.keys(found).length;
+    if (problemCount > 0) {
+      return setError(single ? Object.values(found)[0] : `Check the highlighted product${problemCount > 1 ? "s" : ""}.`);
+    }
     if (!name.trim()) return setError("Add the name you'd like shown with your review.");
-    if (body.trim().length < 10) return setError("Write at least a sentence (10 characters or more).");
 
     setSending(true);
     setError(null);
     const res = await fetch(`/api/public/review/${token}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ rating, body: body.trim(), customerName: name.trim(), mediaKeys: [] }),
+      body: JSON.stringify({
+        customerName: name.trim(),
+        items: started.map((p) => ({
+          productId: p.id,
+          rating: draft(p.id).rating,
+          body: draft(p.id).body.trim(),
+          mediaKeys: [],
+        })),
+      }),
     }).catch(() => null);
 
     if (res?.ok) {
-      setSent(true);
-    } else {
-      setError("Your review didn't send. Check your connection and try again.");
-      setSending(false);
+      const data = (await res.json().catch(() => ({}))) as { saved?: number };
+      setSavedCount(data.saved ?? started.length);
+      return;
     }
+    const code = res ? ((await res.json().catch(() => ({}))) as { error?: string }).error : undefined;
+    setError(
+      code === "already_submitted"
+        ? LOAD_ERRORS.already_submitted
+        : code === "expired"
+          ? LOAD_ERRORS.expired
+          : "Your review didn't send. Check your connection and try again.",
+    );
+    setSending(false);
   }
 
   const store = ctx?.storeName ?? "the store";
-  const shown = hover || rating;
+  const sent = savedCount !== null;
+  const single = ctx?.products.length === 1;
 
   return (
     <main className="rf">
@@ -84,64 +173,71 @@ export default function ReviewFormPage() {
           <p className="rf-hint">Loading…</p>
         ) : sent ? (
           <div className="rf-done">
-            <h2>Your review has been sent to {store}.</h2>
-            <p className="rf-hint">It will appear on the product page once the store publishes it.</p>
+            <h2>
+              {savedCount === 1 ? "Your review has" : `Your ${savedCount} reviews have`} been sent to {store}.
+            </h2>
+            <p className="rf-hint">Reviews appear on the product page once the store publishes them.</p>
           </div>
         ) : (
-          <form onSubmit={submit} noValidate style={{ display: "grid", gap: 22 }}>
-            {ctx.products.map((p) => (
-              <div className="rf-product" key={p.id}>
-                {p.imageUrl && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={p.imageUrl} alt="" />
-                )}
-                <span className="rf-product-name">{p.name}</span>
-              </div>
-            ))}
+          <form onSubmit={submit} noValidate className="rf-form">
+            {!single && (
+              <p className="rf-hint">Rate any product you&apos;d like to review. You can skip the others.</p>
+            )}
 
-            <fieldset className="rf-field" style={{ border: "none", padding: 0, margin: 0 }}>
-              <legend className="rf-label">Your rating</legend>
-              <div className="rate" onMouseLeave={() => setHover(0)}>
-                {[1, 2, 3, 4, 5].map((n) => (
-                  <span key={n}>
-                    <input
-                      type="radio"
-                      id={`star-${n}`}
-                      name="rating"
-                      value={n}
-                      checked={rating === n}
-                      onChange={() => setRating(n)}
-                    />
-                    <label htmlFor={`star-${n}`} onMouseEnter={() => setHover(n)} aria-label={`${n} star${n > 1 ? "s" : ""}, ${RATING_WORDS[n]}`}>
-                      <svg viewBox="0 0 20 20" aria-hidden="true">
-                        <path d={STAR_PATH} className={n <= shown ? "star-on" : "star-off"} />
-                      </svg>
+            {ctx.products.map((p, i) => {
+              const d = draft(p.id);
+              const problem = problems[p.id];
+              return (
+                <section
+                  key={p.id}
+                  className={`rf-item${single ? " rf-item-single" : ""}${problem ? " rf-item-problem" : ""}`}
+                  aria-labelledby={`p${i}-name`}
+                >
+                  <div className="rf-product">
+                    {p.imageUrl && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={p.imageUrl} alt="" />
+                    )}
+                    <span className="rf-product-name" id={`p${i}-name`}>
+                      {p.name}
+                    </span>
+                  </div>
+
+                  <StarInput
+                    idPrefix={`p${i}`}
+                    label={single ? "Your rating" : `Your rating for ${p.name}`}
+                    value={d.rating}
+                    onChange={(n) => update(p.id, { rating: n })}
+                  />
+
+                  <div className="rf-field">
+                    <label className="rf-label" htmlFor={`p${i}-review`}>
+                      Your review
                     </label>
-                  </span>
-                ))}
-              </div>
-              <p className="rate-word" aria-live="polite">
-                {RATING_WORDS[shown]}
-              </p>
-            </fieldset>
+                    <textarea
+                      id={`p${i}-review`}
+                      className="rf-textarea"
+                      maxLength={5000}
+                      value={d.body}
+                      onChange={(e) => update(p.id, { body: e.target.value })}
+                      placeholder="What did you like or dislike? How are you using it?"
+                      aria-invalid={problem ? true : undefined}
+                      aria-describedby={problem && !single ? `p${i}-problem` : undefined}
+                    />
+                  </div>
 
-            <div className="rf-field">
-              <label className="rf-label" htmlFor="review">
-                Your review
-              </label>
-              <textarea
-                id="review"
-                className="rf-textarea"
-                maxLength={5000}
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
-                placeholder="What did you like or dislike? How are you using it?"
-              />
-            </div>
+                  {problem && !single && (
+                    <p className="rf-item-error" id={`p${i}-problem`}>
+                      {problem}
+                    </p>
+                  )}
+                </section>
+              );
+            })}
 
             <div className="rf-field">
               <label className="rf-label" htmlFor="name">
-                Name shown with your review
+                Name shown with your review{single ? "" : "s"}
               </label>
               <input
                 id="name"
@@ -162,7 +258,7 @@ export default function ReviewFormPage() {
             )}
 
             <button type="submit" className="rf-submit" disabled={sending}>
-              {sending ? "Sending…" : "Send review"}
+              {sending ? "Sending…" : single ? "Send review" : "Send reviews"}
             </button>
           </form>
         )}
