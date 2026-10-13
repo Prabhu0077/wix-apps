@@ -99,7 +99,7 @@ export default function PrivacyPage() {
       <p>We&apos;ll email store owners before any important change to this policy.</p>
 
       <p className="doc-foot">
-        <a href={MAKER_URL}>{MAKER_NAME}</a>, {MAKER_LOCATION}. <a href="/support">Help</a>
+        <a href={MAKER_URL}>{MAKER_NAME}</a>, {MAKER_LOCATION}. <a href="/terms">Terms of use</a> · <a href="/support">Help</a>
       </p>
     </main>
   );

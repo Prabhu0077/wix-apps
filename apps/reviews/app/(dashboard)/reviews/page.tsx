@@ -2,6 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react";
 
+import { ImportPanel } from "@/components/dashboard/ImportPanel";
 import { Stars } from "@/components/ui/Stars";
 import { api, ApiError, useInstance } from "@/lib/dashboard-client";
 import { fullDate, reviewDateLabel } from "@/lib/dates";
@@ -17,6 +18,7 @@ type Review = {
   status: Status;
   verified?: boolean;
   source?: "REQUEST" | "IMPORT" | "MANUAL";
+  incentivized?: boolean;
   reply: string | null;
   createdAt: string;
   media: Media[];
@@ -67,6 +69,7 @@ function ReviewItem({
         <span className={`badge ${badge.cls}`}>{badge.text}</span>
         {review.verified && <span className="badge badge-verified">Verified buyer</span>}
         {review.source === "IMPORT" && <span className="badge badge-hidden">Imported</span>}
+        {review.incentivized && <span className="badge badge-hidden">Incentive</span>}
         <time className="rsmall rdate" dateTime={review.createdAt} title={`Written ${fullDate(review.createdAt)}`}>
           {reviewDateLabel(review.createdAt)}
         </time>
@@ -152,20 +155,51 @@ function ReviewItem({
 function Reviews() {
   const instance = useInstance();
   const [filter, setFilter] = useState<Status | "ALL">("PENDING");
+  const [rating, setRating] = useState<number | null>(null);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [reviews, setReviews] = useState<Review[] | null>(null);
+  const [showImport, setShowImport] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
+  const query = useCallback(
+    (p: number) => `/api/reviews?status=${filter}&page=${p}${rating ? `&rating=${rating}` : ""}`,
+    [filter, rating],
+  );
+
   const load = useCallback(() => {
     setReviews(null);
     setError(null);
-    api<{ reviews: Review[] }>(instance, `/api/reviews?status=${filter}`)
-      .then((d) => setReviews(d.reviews))
+    setPage(0);
+    api<{ reviews: Review[]; hasMore: boolean }>(instance, query(0))
+      .then((d) => {
+        setReviews(d.reviews);
+        setHasMore(d.hasMore);
+      })
       .catch((e: unknown) => setError(e instanceof ApiError ? e.message : "Something went wrong."));
-  }, [instance, filter]);
+  }, [instance, query]);
 
   useEffect(load, [load]);
+
+  async function loadMore() {
+    setLoadingMore(true);
+    try {
+      const d = await api<{ reviews: Review[]; hasMore: boolean }>(instance, query(page + 1));
+      setReviews((prev) => {
+        const seen = new Set((prev ?? []).map((r) => r.id));
+        return [...(prev ?? []), ...d.reviews.filter((r) => !seen.has(r.id))];
+      });
+      setHasMore(d.hasMore);
+      setPage((p) => p + 1);
+    } catch (e: unknown) {
+      setError(e instanceof ApiError ? e.message : "Couldn't load more reviews.");
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   async function onAction(id: string, action: Action, reply?: string): Promise<boolean> {
     setBusyId(id);
@@ -201,19 +235,42 @@ function Reviews() {
               {f.label}
             </button>
           ))}
+          <label className="visually-hidden" htmlFor="rating-filter">
+            Star rating
+          </label>
+          <select
+            id="rating-filter"
+            className="select-sm"
+            value={rating ?? ""}
+            onChange={(e) => setRating(e.target.value ? Number(e.target.value) : null)}
+          >
+            <option value="">All ratings</option>
+            {[5, 4, 3, 2, 1].map((n) => (
+              <option key={n} value={n}>
+                {n} star{n === 1 ? "" : "s"}
+              </option>
+            ))}
+          </select>
         </div>
         {/* Every plan, every review, any time (PRD R9). A plain link so the
             browser handles the download inside the Wix dashboard iframe. */}
-        {instance && (
-          <a
-            className="btn btn-secondary btn-sm"
-            href={`/api/reviews/export?instance=${encodeURIComponent(instance)}`}
-            download
-          >
-            Export all reviews (CSV)
-          </a>
-        )}
+        <div className="toolbar-actions">
+          <button className="btn btn-secondary btn-sm" aria-expanded={showImport} onClick={() => setShowImport((v) => !v)}>
+            Import reviews
+          </button>
+          {instance && (
+            <a
+              className="btn btn-secondary btn-sm"
+              href={`/api/reviews/export?instance=${encodeURIComponent(instance)}`}
+              download
+            >
+              Export all reviews (CSV)
+            </a>
+          )}
+        </div>
       </div>
+
+      {showImport && <ImportPanel instance={instance} onDone={load} />}
 
       {notice && (
         <div className="notice notice-ok" role="status">
@@ -231,8 +288,19 @@ function Reviews() {
           <div className="loading">Loading reviews…</div>
         ) : reviews && reviews.length === 0 ? (
           <div className="empty">
-            <p className="empty-title">{EMPTY_TEXT[filter].title}</p>
-            <p>{EMPTY_TEXT[filter].text}</p>
+            {rating ? (
+              <>
+                <p className="empty-title">
+                  No {rating}-star reviews here
+                </p>
+                <p>Try another rating or choose &quot;All ratings&quot;.</p>
+              </>
+            ) : (
+              <>
+                <p className="empty-title">{EMPTY_TEXT[filter].title}</p>
+                <p>{EMPTY_TEXT[filter].text}</p>
+              </>
+            )}
           </div>
         ) : (
           <ul className="rlist">
@@ -240,6 +308,13 @@ function Reviews() {
               <ReviewItem key={r.id} review={r} busy={busyId === r.id} onAction={onAction} />
             ))}
           </ul>
+        )}
+        {hasMore && reviews && reviews.length > 0 && (
+          <div className="card-foot">
+            <button className="btn btn-secondary btn-sm" onClick={loadMore} disabled={loadingMore}>
+              {loadingMore ? "Loading…" : "Show more reviews"}
+            </button>
+          </div>
         )}
       </section>
     </div>

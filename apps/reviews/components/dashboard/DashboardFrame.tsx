@@ -76,6 +76,10 @@ export function DashboardFrame({ children }: { children: React.ReactNode }) {
         or read our{" "}
         <a href="/privacy" target="_blank" rel="noopener">
           privacy policy
+        </a>{" "}
+        and{" "}
+        <a href="/terms" target="_blank" rel="noopener">
+          terms
         </a>
         .
       </footer>

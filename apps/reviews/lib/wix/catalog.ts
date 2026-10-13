@@ -121,3 +121,60 @@ export async function getProductSummaries(
   for (const r of results) if (r) out.set(r.id, r);
   return out;
 }
+
+// ---------- Full product list (for matching imported reviews) ----------
+
+export type CatalogProduct = { id: string; name: string; slug: string; sku: string | null };
+
+const V1_QUERY_URL = "https://www.wixapis.com/stores-reader/v1/products/query";
+const V3_QUERY_URL = "https://www.wixapis.com/stores/v3/products/query";
+const MAX_CATALOG = 10_000;
+const LIST_TTL_MS = 10 * 60 * 1000;
+const listCache = new Map<string, { products: CatalogProduct[]; at: number }>();
+
+type V1QueryResponse = { products?: { id?: string; name?: string; slug?: string; sku?: string }[]; totalResults?: number };
+type V3QueryResponse = {
+  products?: { id?: string; name?: string; slug?: string }[];
+  pagingMetadata?: { hasNext?: boolean; cursors?: { next?: string } };
+};
+
+async function listV1(client: WixClient): Promise<CatalogProduct[]> {
+  const out: CatalogProduct[] = [];
+  for (let offset = 0; offset < MAX_CATALOG; offset += 100) {
+    const res = await client.post<V1QueryResponse>(V1_QUERY_URL, { query: { paging: { limit: 100, offset } } });
+    const page = res?.products ?? [];
+    for (const p of page) {
+      if (p.id && p.name) out.push({ id: p.id, name: p.name, slug: p.slug ?? "", sku: p.sku || null });
+    }
+    if (page.length < 100) break;
+  }
+  return out;
+}
+
+async function listV3(client: WixClient): Promise<CatalogProduct[]> {
+  const out: CatalogProduct[] = [];
+  let cursor: string | undefined;
+  while (out.length < MAX_CATALOG) {
+    const res = await client.post<V3QueryResponse>(V3_QUERY_URL, {
+      query: { cursorPaging: cursor ? { limit: 100, cursor } : { limit: 100 } },
+    });
+    // V3 query returns no variant data, so no SKUs (match by ID, URL, slug or name instead).
+    for (const p of res?.products ?? []) {
+      if (p.id && p.name) out.push({ id: p.id, name: p.name, slug: p.slug ?? "", sku: null });
+    }
+    cursor = res?.pagingMetadata?.cursors?.next;
+    if (!res?.pagingMetadata?.hasNext || !cursor) break;
+  }
+  return out;
+}
+
+/** Every visible product in the store, on V1 or V3. Cached 10 minutes per store. */
+export async function listCatalogProducts(client: WixClient, cacheKey: string): Promise<CatalogProduct[]> {
+  const hit = listCache.get(cacheKey);
+  if (hit && Date.now() - hit.at < LIST_TTL_MS) return hit.products;
+  const version = await getCatalogVersion(client, cacheKey);
+  if (version === "NONE") return [];
+  const products = version === "V1" ? await listV1(client) : await listV3(client);
+  listCache.set(cacheKey, { products, at: Date.now() });
+  return products;
+}

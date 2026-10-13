@@ -12,7 +12,8 @@ import { api, ApiError, useInstance } from "@/lib/dashboard-client";
 
 // `soon` marks features that are planned but not built yet. They are labelled
 // in the UI so merchants never pay for something that doesn't exist.
-type Feature = { text: string; soon?: boolean };
+// `live: "photos"` drops the label once photo uploads are switched on.
+type Feature = { text: string; soon?: boolean; live?: "photos" };
 
 const PLANS: { key: string; price: string; quota: string; features: Feature[] }[] = [
   {
@@ -20,11 +21,11 @@ const PLANS: { key: string; price: string; quota: string; features: Feature[] }[
     price: "$0",
     quota: "50 review requests a month",
     features: [
-      { text: "Photo reviews", soon: true },
+      { text: "Photo reviews", soon: true, live: "photos" },
       { text: "Verified buyer badge" },
       { text: "Product page reviews" },
       { text: "Export all your reviews, any time" },
-      { text: "Import from other apps", soon: true },
+      { text: "Import from Wix Reviews or a CSV file" },
     ],
   },
   {
@@ -105,7 +106,9 @@ function Plan() {
                   {p.features.map((f) => (
                     <li key={f.text}>
                       {f.text}
-                      {f.soon && <span className="rsmall"> (coming soon)</span>}
+                      {f.soon && !(f.live === "photos" && stats.photosEnabled) && (
+                        <span className="rsmall"> (coming soon)</span>
+                      )}
                     </li>
                   ))}
                 </ul>

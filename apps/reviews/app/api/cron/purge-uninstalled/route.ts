@@ -70,7 +70,8 @@ export async function GET(req: NextRequest) {
         .from(reviewMedia)
         .innerJoin(reviews, eq(reviewMedia.reviewId, reviews.id))
         .where(eq(reviews.accountId, account.id));
-      await deleteR2Objects(media.map((m) => m.key));
+      // Imported photos are only linked (empty key); only our own uploads live in R2.
+      await deleteR2Objects(media.map((m) => m.key).filter((k) => k.startsWith("reviews/")));
 
       // Re-check at delete time: a reinstall between the query and now clears
       // uninstalledAt, and then nothing is deleted.

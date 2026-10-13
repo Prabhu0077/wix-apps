@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 
+import { PolicyCard } from "@/components/dashboard/PolicyCard";
 import { Stars } from "@/components/ui/Stars";
 import { api, ApiError, useInstance } from "@/lib/dashboard-client";
 import { DEFAULT_SETTINGS, type AppSettings } from "@/lib/settings";
@@ -22,12 +23,16 @@ function Toggle({ id, checked, onChange }: { id: string; checked: boolean; onCha
 function Settings() {
   const instance = useInstance();
   const [s, setS] = useState<AppSettings | null>(null);
+  const [storeName, setStoreName] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
 
   useEffect(() => {
-    api<{ settings: AppSettings }>(instance, "/api/settings")
-      .then((d) => setS(d.settings))
+    api<{ settings: AppSettings; storeName: string | null }>(instance, "/api/settings")
+      .then((d) => {
+        setS(d.settings);
+        setStoreName(d.storeName);
+      })
       .catch((e: unknown) => setNotice({ kind: "error", text: e instanceof ApiError ? e.message : "Couldn't load settings." }));
   }, [instance]);
 
@@ -189,6 +194,8 @@ function Settings() {
           </span>
         )}
       </div>
+
+      <PolicyCard store={storeName ?? "Our store"} />
     </div>
   );
 }

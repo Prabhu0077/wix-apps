@@ -1,24 +1,33 @@
 # AGENTS.md — apps/reviews
 
-App-specific context. Read the **root `AGENTS.md`** first, then `../../docs/01_visual_ugc_reviews_mvp_spec.md`, then this file.
+App-specific context. Read the **root `AGENTS.md`** first, then `../../docs/01_reviews_app_prd_v2.md`, then this file. (`01_visual_ugc_reviews_mvp_spec.md` is history.)
 
 ---
 
 ## What this app is
 
-Visual UGC & Video Reviews for Wix Stores. App #1 in the portfolio. Build target: 6–8 weeks. See spec §7 for the week-by-week plan.
+"Product Reviews" for Wix Stores, made by Bodham Labs (public name still open — change `lib/product.ts`). App #1 in the portfolio. Scope and plans: `../../docs/01_reviews_app_prd_v2.md`. Task list with progress at the top: `../../docs/02_reviews_mvp_tasks.md`. Known traps: `../../docs/GOTCHAS.md`.
 
-## Current state (scaffold)
+## Current state (MVP code complete, 14 Oct 2026; not yet run against a live Wix store)
 
-Working Next.js 15 shell with Drizzle + Neon wired up. The following exist as **functional stubs** — they boot and respond, but return TODO placeholders:
+| Area | Where |
+|---|---|
+| Order fulfilled → review request (monthly plan limit, unsubscribe list, dedupe per order) | `app/api/wix/webhook/route.ts`, `lib/usage.ts`, `lib/plans.ts`, `lib/suppression.ts` |
+| Sending emails (retries, store name + postal address, one-click unsubscribe headers) | `app/api/cron/send-requests/route.ts`, `lib/email/review-request.tsx`, `lib/store-profile.ts`, `lib/wix/site.ts` |
+| Review form (one block per product, photos to R2 when configured) | `app/(public)/review/[token]/`, `app/api/public/review/` |
+| Storefront widget — plain server-rendered HTML, ~1 KB of JS | `app/(embed)/widget/route.ts`, `lib/widget-html.ts`, `lib/widget-data.ts` |
+| Dashboard: Overview (setup check, usage), Reviews (filters, import, export), Settings (+ review policy text), Plan | `app/(dashboard)/`, `components/dashboard/` |
+| Catalog V1 + V3 product reads | `lib/wix/catalog.ts` (only place that calls Stores product APIs) |
+| Import (CSV, Wix Reviews) and export (CSV) | `app/api/reviews/import/`, `app/api/reviews/export/`, `lib/import*.ts`, `lib/product-match.ts` |
+| Uninstall → 30-day deletion | webhook `AppRemoved`, `app/api/cron/purge-uninstalled/route.ts` |
+| Help, privacy, terms, unsubscribe pages | `app/(public)/` |
 
-- `app/api/wix/install/route.ts` — OAuth code-exchange works; gets site properties and inserts/updates accounts on installation.
-- `app/api/wix/webhook/route.ts` — receives + parses payloads; signature verification is fully implemented with jose JWS verification and body SHA-256 matching (with a fallback dev-bypass in development); event handlers are TODOs.
-- `app/api/public/review/[token]/route.ts` — accepts GET/POST; no real lookup or persistence yet.
-- `app/api/widget/products/[productId]/route.ts` — returns an empty review list.
-- All dashboard pages (`app/page.tsx`, `app/reviews/page.tsx`, etc.) render a placeholder; no real data fetching yet.
-- `lib/wix/client.ts` — minimal REST helper; expand as more endpoints are needed.
-- `drizzle/schema.ts` — complete per spec §4. Run `pnpm db:generate && pnpm db:migrate` to apply.
+Commands (from this folder; on the founder's PC see GOTCHAS for `NODE_ENV`):
+
+- `pnpm test` — pure-logic tests (`tests/`), no database or network.
+- `node_modules\.bin\tsc.cmd --noEmit` — type-check (delete `.next` first if it complains about `.next/types`).
+- `node scripts/post-test-webhook.mjs --instance <id>` — post a fake order-fulfilled webhook to a local dev server running with `WIX_WEBHOOK_DEV_BYPASS=1`.
+- Migrations: edit `drizzle/schema.ts` → `drizzle-kit generate` (works offline with a dummy `DATABASE_URL`) → read-only check of `drizzle.__drizzle_migrations` → `node --env-file=.env.local node_modules\drizzle-kit\bin.cjs migrate` with the founder's yes.
 
 ## Module boundaries (do not blur)
 
@@ -45,13 +54,15 @@ Working Next.js 15 shell with Drizzle + Neon wired up. The following exist as **
 
 ## Security gotchas
 
-- **Webhook signature verification is implemented** in `lib/wix/webhooks.ts` using `jose` to verify the JWS signature from the `digest` header and validate the body payload hash. Production strictly blocks invalid signatures, while development logs a warning but allows processing for local development convenience.
+- **Webhook verification** (`lib/wix/webhooks.ts`): Wix sends a JWT in the request body, verified with the app's public key (`jose`, RS256). Unsigned test payloads are accepted only with `WIX_WEBHOOK_DEV_BYPASS=1` outside production.
 - **Public review tokens** are random and high-entropy (`createId()` from cuid2). Don't expose internal IDs in URLs.
-- **Media uploads** go directly to R2 via signed URLs — the server doesn't proxy bytes. Validate file size and MIME server-side before issuing the signed URL.
+- **Media uploads** go directly to R2 via signed URLs — the server doesn't proxy bytes. The signing route checks the token is an open review request, photos only, 10 MB max; the submit route accepts only keys under `reviews/<token>/`.
+- **Review gating is not allowed**: never add a rule that treats ratings differently (FTC, UK DMCC, Google). Auto-publish applies to every rating.
+- **Shopper text is hostile**: escape it in HTML (`lib/widget-html.ts`, emails) and guard CSV exports against formulas (`lib/csv.ts`).
 
 ## When you change something here
 
-- If you change `drizzle/schema.ts`, also update spec §4 in `../../docs/01_visual_ugc_reviews_mvp_spec.md`.
+- If you change `drizzle/schema.ts`, generate a migration and note it in `../../docs/02_reviews_mvp_tasks.md`.
 - If you change OAuth scopes or webhook subscriptions, also update `../../docs/02_wix_developer_center_setup.md` so the Dev Center registration stays in sync.
 - If you make an architectural decision (e.g., switch from Vercel Cron to a Railway worker), add a row to the Decisions Log in `../../docs/Wix_Apps_Portfolio.md`.
 
@@ -61,8 +72,9 @@ Working Next.js 15 shell with Drizzle + Neon wired up. The following exist as **
 - ❌ Don't import directly from another app under `apps/*`. If you need shared code, talk to the user about extraction.
 - ❌ Don't read `process.env.X` outside `lib/env.ts`.
 - ❌ Don't write to `node_modules`, `.next/`, or commit `.env.local`.
-- ❌ Don't introduce a new third-party UI library without justification — plain React + CSS modules for v1.
+- ❌ Don't introduce a new third-party UI library without justification — plain React + plain CSS (`app/styles/`) for v1. The Wix Design System needs React 18, so it isn't used.
+- ❌ Don't turn the storefront widget back into a React page: it loads on every product page and must stay under 30 KB.
 
 ---
 
-*Last updated: 2026-05-21.*
+*Last updated: 2026-10-14.*

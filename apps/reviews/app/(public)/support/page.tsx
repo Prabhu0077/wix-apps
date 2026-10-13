@@ -47,11 +47,23 @@ const FAQ = [
   },
   {
     q: "What happens to my reviews if I change plans?",
-    a: "Your reviews stay on your store whatever plan you're on. If you reach your monthly limit, we pause new requests and tell you first.",
+    a: "Your reviews stay on your store whatever plan you're on. We warn you in the app at 80% of your monthly requests; at the limit, new orders aren't asked for a review until next month or until you upgrade.",
   },
   {
     q: "How do I uninstall?",
-    a: "Remove the app from your Wix dashboard. Your data is deleted within 30 days. Ask us for an export first if you want to keep a copy.",
+    a: "Remove the app from your Wix dashboard. Review emails stop straight away and your data is deleted within 30 days. Export your reviews from the Reviews tab first if you want to keep a copy. Reinstalling within 30 days brings everything back.",
+  },
+  {
+    q: "Can I export my reviews?",
+    a: "Yes, on every plan. In the Reviews tab, choose \"Export all reviews (CSV)\". The file opens in Excel or Google Sheets.",
+  },
+  {
+    q: "Can I bring reviews from another app?",
+    a: "Yes. Export them as a CSV from the other app, then use \"Import reviews\" in the Reviews tab. Imported reviews are labelled \"Imported review\".",
+  },
+  {
+    q: "Can customers stop the emails?",
+    a: "Yes. Every email has an unsubscribe link, and after that your store won't send that customer review requests again.",
   },
 ];
 
@@ -91,7 +103,8 @@ export default function SupportPage() {
       </dl>
 
       <p className="doc-foot">
-        {PRODUCT_NAME} is made by <a href={MAKER_URL}>{MAKER_NAME}</a>. <a href="/privacy">Privacy policy</a>
+        {PRODUCT_NAME} is made by <a href={MAKER_URL}>{MAKER_NAME}</a>. <a href="/privacy">Privacy policy</a> ·{" "}
+        <a href="/terms">Terms of use</a>
       </p>
     </main>
   );

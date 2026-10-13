@@ -5,6 +5,7 @@ import { NextRequest, NextResponse, after } from "next/server";
 import { and, eq } from "drizzle-orm";
 
 import { db, accounts, reviewRequests } from "@/lib/db";
+import { touchMeta } from "@/lib/account-meta";
 import { readSettings } from "@/lib/settings";
 import { isSuppressed } from "@/lib/suppression";
 import { currentPlan, requestUsage } from "@/lib/usage";
@@ -107,6 +108,7 @@ async function handleOrderFulfilled(wixInstanceId: string, event: WixEvent) {
       return;
     }
     if (account.uninstalledAt) return; // late event after uninstall
+    await touchMeta(account, "lastWebhookAt", 60 * 60 * 1000); // for the health check
 
     const existing = await db.query.reviewRequests.findFirst({
       where: and(eq(reviewRequests.accountId, account.id), eq(reviewRequests.wixOrderId, orderId)),

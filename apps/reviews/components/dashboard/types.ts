@@ -9,6 +9,7 @@ export type Stats = {
   requestsSent: number;
   upgradeUrl: string;
   storeAddressMissing: boolean;
+  photosEnabled: boolean;
   usage: {
     used: number;
     limit: number;

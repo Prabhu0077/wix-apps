@@ -7,6 +7,7 @@ import { and, count, eq, sql } from "drizzle-orm";
 import { db, accounts, reviews, reviewRequests } from "@/lib/db";
 import { env } from "@/lib/env";
 import { resolveInstanceId } from "@/lib/wix/instance";
+import { r2Enabled } from "@/lib/r2";
 import { getStoreProfile } from "@/lib/store-profile";
 import { currentPlan, requestUsage } from "@/lib/usage";
 
@@ -74,6 +75,7 @@ export async function GET(req: NextRequest) {
     requestsScheduled: Number(requests[0]?.total ?? 0),
     requestsSent: Number(requests[0]?.sent ?? 0),
     storeAddressMissing: !profile.storeAddress,
+    photosEnabled: r2Enabled(),
     usage: {
       used: usage.used,
       limit: usage.limit,

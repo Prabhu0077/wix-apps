@@ -9,6 +9,7 @@ import { db, accounts, reviewRequests, reviews, reviewMedia } from "@/lib/db";
 import { getProductSummaries, type ProductSummary } from "@/lib/wix/catalog";
 import { getWixClient } from "@/lib/wix/service";
 import { env } from "@/lib/env";
+import { MAX_PHOTOS_PER_REVIEW, r2Enabled } from "@/lib/r2";
 import { REVIEW_LINK_DAYS } from "@/lib/product";
 import { readSettings, storeNameFrom } from "@/lib/settings";
 
@@ -62,7 +63,7 @@ export async function GET(
   const products = productIds.map((id) => found.get(id) ?? { id, name: "Your recent purchase" });
 
   // The shopper's email is not returned: the page never needs it.
-  return NextResponse.json({ storeName, products });
+  return NextResponse.json({ storeName, products, photosEnabled: r2Enabled() });
 }
 
 // One block per product the shopper chose to review. Products they skip are
@@ -72,7 +73,7 @@ const ItemSchema = z.object({
   rating: z.number().int().min(1).max(5),
   body: z.string().trim().min(10, "Review must be at least 10 characters").max(5000),
   // Media is uploaded straight to R2 via signed URL; the client sends back the keys.
-  mediaKeys: z.array(z.string().max(500)).max(5).optional().default([]),
+  mediaKeys: z.array(z.string().max(500)).max(MAX_PHOTOS_PER_REVIEW).optional().default([]),
 });
 
 const SubmitSchema = z.object({
@@ -121,7 +122,7 @@ export async function POST(
       return NextResponse.json({ error: "validation_failed", detail: "unknown_or_duplicate_product" }, { status: 400 });
     }
     seen.add(item.productId);
-    if (item.mediaKeys.some((k) => !k.startsWith(`reviews/${token}/`) || k.includes(".."))) {
+    if (item.mediaKeys.some((k) => !k.startsWith(`reviews/${token}/`) || k.includes("..") || !/^[\w/.-]+$/.test(k))) {
       return NextResponse.json({ error: "validation_failed", detail: "bad_media_key" }, { status: 400 });
     }
   }
@@ -172,7 +173,7 @@ export async function POST(
       const media = body.items.flatMap((item) =>
         item.mediaKeys.map((key) => ({
           reviewId: idByProduct.get(item.productId)!,
-          kind: /\.(mp4|mov|webm)$/i.test(key) ? ("VIDEO" as const) : ("PHOTO" as const),
+          kind: "PHOTO" as const, // video reviews are a later, paid feature
           r2Key: key,
           publicUrl: `${r2Base}/${key}`,
         })),

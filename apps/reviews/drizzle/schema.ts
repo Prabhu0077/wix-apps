@@ -92,12 +92,19 @@ export const reviews = reviewsSchema.table(
     // Verified = submitted through a review-request token tied to a real Wix order.
     verified:        boolean("verified").default(false).notNull(),
     source:          reviewSourceEnum("source").default("REQUEST").notNull(),
+    // The reviewer got something for writing it (coupon, gift). Shown on the
+    // review, as the FTC rule and UK DMCC Act require (PRD R12, T10.2).
+    incentivized:    boolean("incentivized").default(false).notNull(),
+    // Imports only: a stable key for the source row (Wix review ID, or a hash
+    // of the CSV row), so importing the same file twice adds nothing.
+    sourceRef:       text("source_ref"),
     publishedAt:     timestamp("published_at"),
     createdAt:       timestamp("created_at").defaultNow().notNull(),
   },
   (t) => ({
     byAccountProduct: index("r_account_product_idx").on(t.accountId, t.productId),
     byStatus:         index("r_status_idx").on(t.status),
+    oneImportPerRow:  uniqueIndex("r_account_source_ref_uq").on(t.accountId, t.sourceRef),
   }),
 );
 

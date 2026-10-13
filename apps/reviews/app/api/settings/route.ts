@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 
 import { db, accounts } from "@/lib/db";
-import { readSettings, SettingsSchema } from "@/lib/settings";
+import { readSettings, SettingsSchema, storeNameFrom } from "@/lib/settings";
 import { resolveInstanceId } from "@/lib/wix/instance";
 
 export const runtime = "nodejs";
@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   const account = await db.query.accounts.findFirst({ where: eq(accounts.wixInstanceId, instanceId) });
   if (!account) return NextResponse.json({ error: "account_not_found" }, { status: 404 });
 
-  return NextResponse.json({ settings: readSettings(account.settings) });
+  return NextResponse.json({ settings: readSettings(account.settings), storeName: storeNameFrom(account.settings) });
 }
 
 export async function POST(req: NextRequest) {

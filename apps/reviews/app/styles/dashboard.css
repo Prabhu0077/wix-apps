@@ -399,6 +399,34 @@ a:hover {
 }
 
 /* ---------- Reviews list ---------- */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.select-sm {
+  font: 500 13px var(--font-text);
+  height: 30px;
+  padding: 0 28px 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 15px;
+  background: var(--surface);
+  color: var(--text);
+}
+.card-foot {
+  display: flex;
+  justify-content: center;
+  padding: 14px 20px;
+  border-top: 1px solid var(--line);
+}
+.toolbar-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
 .toolbar {
   display: flex;
   align-items: center;
@@ -733,6 +761,100 @@ a:hover {
 }
 .notice-row > span {
   flex: 1 1 320px;
+}
+
+/* ---------- Setup check ---------- */
+.health {
+  list-style: none;
+  margin: 0;
+  padding: 4px 20px 12px;
+}
+.health-item {
+  display: grid;
+  grid-template-columns: 12px 1fr;
+  gap: 12px;
+  padding: 12px 0;
+  align-items: start;
+}
+.health-item + .health-item {
+  border-top: 1px solid var(--line);
+}
+.health-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-top: 6px;
+}
+.health-ok .health-dot {
+  background: var(--success);
+}
+.health-warn .health-dot {
+  background: #e08a00;
+}
+.health-error .health-dot {
+  background: var(--danger);
+}
+
+.policy-text {
+  min-height: 260px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text-2);
+}
+
+/* ---------- Import ---------- */
+.import-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 10px 0;
+}
+.import-row + .import-row {
+  border-top: 1px solid var(--line);
+}
+.file-btn {
+  position: relative;
+  cursor: pointer;
+}
+.file-btn input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+.file-btn:focus-within {
+  box-shadow: var(--focus);
+}
+.map-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 8px 20px;
+}
+.map-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 14px;
+}
+.map-row .select-sm {
+  max-width: 180px;
+}
+.map-check {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 14px;
+}
+.import-failed {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 13px;
+  color: var(--text-2);
+  max-height: 220px;
+  overflow: auto;
 }
 
 /* ---------- Small screens ---------- */

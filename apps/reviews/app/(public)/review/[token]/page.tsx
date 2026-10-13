@@ -6,7 +6,8 @@
 //
 // One block per product in the order. The shopper rates any products they
 // want to review and can skip the rest; each rated product becomes its own
-// review. Photo upload stays off until Cloudflare R2 is active (task T2.4).
+// review. Up to 5 photos per product, uploaded straight to Cloudflare R2;
+// the photo picker appears only when R2 is configured (photosEnabled).
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
@@ -14,8 +15,9 @@ import { useParams } from "next/navigation";
 import { REVIEW_LINK_DAYS } from "@/lib/product";
 
 type Product = { id: string; name: string; imageUrl?: string };
-type Context = { storeName: string | null; products: Product[] };
-type Draft = { rating: number; body: string };
+type Context = { storeName: string | null; products: Product[]; photosEnabled?: boolean };
+type Photo = { key: string; preview: string };
+type Draft = { rating: number; body: string; photos: Photo[] };
 
 const LOAD_ERRORS: Record<string, string> = {
   not_found: "This review link doesn't work. Check that you opened the full link from the email.",
@@ -27,7 +29,102 @@ const RATING_WORDS = ["", "Poor", "Fair", "Okay", "Good", "Excellent"];
 const STAR_PATH =
   "M10 1.6l2.47 5.3 5.8.68-4.29 3.96 1.13 5.73L10 14.4l-5.11 2.87 1.13-5.73L1.73 7.58l5.8-.68z";
 const MIN_TEXT = 10;
-const EMPTY: Draft = { rating: 0, body: "" };
+const EMPTY: Draft = { rating: 0, body: "", photos: [] };
+const MAX_PHOTOS = 5;
+const MAX_PHOTO_MB = 10;
+const PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
+/** Ask our server for a signed URL, then upload the file straight to storage. */
+async function uploadPhoto(token: string, file: File): Promise<Photo> {
+  if (!PHOTO_TYPES.includes(file.type)) throw new Error("Use a JPG, PNG or WebP photo.");
+  if (file.size > MAX_PHOTO_MB * 1024 * 1024) throw new Error(`Photos can be up to ${MAX_PHOTO_MB} MB.`);
+  const sig = await fetch("/api/public/review/upload-signature", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token, contentType: file.type, sizeBytes: file.size }),
+  });
+  if (!sig.ok) throw new Error("Photo upload isn't available right now.");
+  const { uploadUrl, key } = (await sig.json()) as { uploadUrl: string; key: string };
+  const put = await fetch(uploadUrl, { method: "PUT", headers: { "Content-Type": file.type }, body: file });
+  if (!put.ok) throw new Error("A photo didn't upload. Try again.");
+  return { key, preview: URL.createObjectURL(file) };
+}
+
+function PhotoPicker({
+  token,
+  idPrefix,
+  photos,
+  onChange,
+}: {
+  token: string;
+  idPrefix: string;
+  photos: Photo[];
+  onChange: (next: Photo[]) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+
+  async function add(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    setProblem(null);
+    const room = MAX_PHOTOS - photos.length;
+    const picked = Array.from(files).slice(0, room);
+    if (files.length > room) setProblem(`You can add up to ${MAX_PHOTOS} photos.`);
+    setBusy(true);
+    const added: Photo[] = [];
+    for (const f of picked) {
+      try {
+        added.push(await uploadPhoto(token, f));
+      } catch (e) {
+        setProblem(e instanceof Error ? e.message : "A photo didn't upload.");
+      }
+    }
+    setBusy(false);
+    if (added.length) onChange([...photos, ...added]);
+  }
+
+  return (
+    <div className="rf-field">
+      <span className="rf-label" id={`${idPrefix}-photos-label`}>
+        Photos <span className="rf-hint">(optional, up to {MAX_PHOTOS})</span>
+      </span>
+      {photos.length > 0 && (
+        <ul className="rf-photos" aria-labelledby={`${idPrefix}-photos-label`}>
+          {photos.map((ph, i) => (
+            <li key={ph.key}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={ph.preview} alt={`Your photo ${i + 1}`} />
+              <button
+                type="button"
+                className="rf-photo-remove"
+                aria-label={`Remove photo ${i + 1}`}
+                onClick={() => onChange(photos.filter((x) => x.key !== ph.key))}
+              >
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {photos.length < MAX_PHOTOS && (
+        <label className="rf-photo-add">
+          <input
+            type="file"
+            accept={PHOTO_TYPES.join(",")}
+            multiple
+            disabled={busy}
+            onChange={(e) => {
+              void add(e.target.files);
+              e.target.value = "";
+            }}
+          />
+          {busy ? "Uploading…" : photos.length ? "Add more photos" : "Add photos"}
+        </label>
+      )}
+      {problem && <p className="rf-item-error">{problem}</p>}
+    </div>
+  );
+}
 
 function StarInput({
   idPrefix,
@@ -106,8 +203,10 @@ export default function ReviewFormPage() {
     if (!ctx) return;
     const single = ctx.products.length === 1;
 
-    // A product counts as started once it has a rating or some text.
-    const started = ctx.products.filter((p) => draft(p.id).rating > 0 || draft(p.id).body.trim() !== "");
+    // A product counts as started once it has a rating, some text or a photo.
+    const started = ctx.products.filter(
+      (p) => draft(p.id).rating > 0 || draft(p.id).body.trim() !== "" || draft(p.id).photos.length > 0,
+    );
     const found: Record<string, string> = {};
     for (const p of started) {
       const d = draft(p.id);
@@ -136,7 +235,7 @@ export default function ReviewFormPage() {
           productId: p.id,
           rating: draft(p.id).rating,
           body: draft(p.id).body.trim(),
-          mediaKeys: [],
+          mediaKeys: draft(p.id).photos.map((ph) => ph.key),
         })),
       }),
     }).catch(() => null);
@@ -225,6 +324,15 @@ export default function ReviewFormPage() {
                       aria-describedby={problem && !single ? `p${i}-problem` : undefined}
                     />
                   </div>
+
+                  {ctx.photosEnabled && (
+                    <PhotoPicker
+                      token={token}
+                      idPrefix={`p${i}`}
+                      photos={d.photos}
+                      onChange={(photos) => update(p.id, { photos })}
+                    />
+                  )}
 
                   {problem && !single && (
                     <p className="rf-item-error" id={`p${i}-problem`}>
