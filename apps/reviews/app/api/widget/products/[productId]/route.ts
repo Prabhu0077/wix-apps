@@ -41,7 +41,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ prod
 
   const published = await db.query.reviews.findMany({
     where: and(eq(reviews.accountId, account.id), eq(reviews.productId, productId), eq(reviews.status, "APPROVED")),
-    orderBy: [desc(reviews.publishedAt)],
+    // Newest written first; publish dates bunch up after bulk approval.
+    orderBy: [desc(reviews.createdAt)],
     limit: 50,
     with: { media: true },
   });
@@ -64,7 +65,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ prod
         reply: r.reply ?? null,
         verified: r.verified,
         imported: r.source === "IMPORT",
-        publishedAt: (r.publishedAt ?? r.createdAt).toISOString(),
+        writtenAt: r.createdAt.toISOString(),
         media: r.media.map((m) => ({ kind: m.kind, url: m.publicUrl, thumbUrl: m.thumbUrl ?? m.publicUrl })),
       })),
       summary: { total, average: total ? Math.round((sum / total) * 10) / 10 : 0, distribution },

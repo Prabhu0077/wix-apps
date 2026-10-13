@@ -8,6 +8,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { Stars } from "@/components/ui/Stars";
+import { fullDate, reviewDateLabel } from "@/lib/dates";
 
 type Review = {
   id: string;
@@ -17,7 +18,7 @@ type Review = {
   reply: string | null;
   verified: boolean;
   imported: boolean;
-  publishedAt: string;
+  writtenAt: string;
   media: { kind: string; url: string; thumbUrl: string }[];
 };
 type Data = {
@@ -31,7 +32,6 @@ function Item({ r }: { r: Review }) {
   const [open, setOpen] = useState(false);
   const long = r.body.length > 280;
   const text = long && !open ? `${r.body.slice(0, 280).trimEnd()}…` : r.body;
-  const date = new Date(r.publishedAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 
   return (
     <li className="w-item">
@@ -40,7 +40,9 @@ function Item({ r }: { r: Review }) {
         <Stars rating={r.rating} size={14} />
         {r.verified && <span className="w-tag">Verified buyer</span>}
         {r.imported && <span className="w-tag">Imported review</span>}
-        <span className="w-date">{date}</span>
+        <time className="w-date" dateTime={r.writtenAt} title={fullDate(r.writtenAt)}>
+          {reviewDateLabel(r.writtenAt)}
+        </time>
       </div>
       <p className="w-body">
         {text}
@@ -92,7 +94,7 @@ function Widget() {
       }
       if (sort === "highest") return b.rating - a.rating;
       if (sort === "lowest") return a.rating - b.rating;
-      return Date.parse(b.publishedAt) - Date.parse(a.publishedAt);
+      return Date.parse(b.writtenAt) - Date.parse(a.writtenAt);
     });
     return list;
   }, [data, sort]);

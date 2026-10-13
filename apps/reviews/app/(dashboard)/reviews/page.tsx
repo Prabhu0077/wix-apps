@@ -3,7 +3,8 @@
 import { Suspense, useCallback, useEffect, useState } from "react";
 
 import { Stars } from "@/components/ui/Stars";
-import { api, ApiError, formatDate, useInstance } from "@/lib/dashboard-client";
+import { api, ApiError, useInstance } from "@/lib/dashboard-client";
+import { fullDate, reviewDateLabel } from "@/lib/dates";
 
 type Media = { kind: "PHOTO" | "VIDEO"; publicUrl: string; thumbUrl: string | null };
 type Status = "PENDING" | "APPROVED" | "REJECTED" | "HIDDEN";
@@ -66,7 +67,9 @@ function ReviewItem({
         <span className={`badge ${badge.cls}`}>{badge.text}</span>
         {review.verified && <span className="badge badge-verified">Verified buyer</span>}
         {review.source === "IMPORT" && <span className="badge badge-hidden">Imported</span>}
-        <span className="rsmall rdate">{formatDate(review.createdAt)}</span>
+        <time className="rsmall rdate" dateTime={review.createdAt} title={`Written ${fullDate(review.createdAt)}`}>
+          {reviewDateLabel(review.createdAt)}
+        </time>
       </div>
       <p className="rsmall">{review.customerEmail}</p>
       <p className="rbody">{review.body}</p>
