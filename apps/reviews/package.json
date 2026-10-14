@@ -5,7 +5,7 @@
   "description": "Product Reviews for Wix Stores (Bodham Labs). App #1 in the portfolio.",
   "scripts": {
     "dev": "next dev --turbo --port 3000",
-    "build": "next build",
+    "build": "node scripts/build-elements.mjs && next build",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
@@ -13,7 +13,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "test": "tsx tests/core.test.ts && tsx tests/import.test.ts && tsx tests/features.test.ts"
+    "test": "tsx tests/core.test.ts && tsx tests/import.test.ts && tsx tests/features.test.ts && tsx tests/auth.test.ts",
+    "build:elements": "node scripts/build-elements.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.750.0",
@@ -27,7 +28,9 @@
     "react-dom": "^19.0.0",
     "resend": "^3.5.0",
     "twilio": "^5.4.0",
-    "zod": "^3.23.8"
+    "zod": "^3.23.8",
+    "@wix/sdk": "^1.21.18",
+    "@wix/site": "^1.68.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
@@ -37,6 +40,7 @@
     "eslint": "^9.18.0",
     "eslint-config-next": "^15.1.0",
     "typescript": "^5.5.4",
-    "tsx": "^4.19.2"
+    "tsx": "^4.19.2",
+    "esbuild": "^0.28.2"
   }
 }

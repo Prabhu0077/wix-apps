@@ -10,6 +10,12 @@
 
 ---
 
+## 2026-10-14 — New Wix apps: no install redirect, no iframe widgets
+
+The app was re-created on the company account (App ID `3e8c1bc4-f9fc-4f01-a8db-9284759534f3`; the old NeoReviewKit app `c0c0a7dd…` lives on another account). New apps get **only** App ID + App Secret on the OAuth page: tokens come from `POST /oauth2/token` (client credentials + instanceId, 4 h), and we learn about installs from the **App Installed** webhook (`lib/wix/account.ts`; the dashboard also creates the account on first open). The old `/api/wix/install` code exchange is gone. Storefront UI must be a **Custom Element** (site plugin / site widget), not an iframe widget: `elements/reviews-element.ts` (bundled with `@wix/sdk` + `@wix/site` to `public/elements/reviews.js`, ~9 KB gzip) gets the store via the visitor's Wix token → `/api/widget/instance` (Get Token Info) and frames our `/widget*` pages, which now allow any https parent and post their height. `WIX_APP_ID`, `WIX_APP_SECRET`, `WIX_WEBHOOK_PUBLIC_KEY` must be the new app's values in `.env.local` and Vercel (the founder pastes the secret). Permission **Read Site Owner Email** is needed for `site.ownerInfo.email`. The eCommerce webhook is listed as "Fulfillment Status Updated" (slug `fulfilled`), not "Order Fulfilled" (that one is Restaurants). *(Hit by: Claude, 2026-10-14.)*
+
+---
+
 ## 2026-10-14 — New Wix permissions and site plugins for the Free/Starter extras
 
 Code alone is not enough: "Ask recent customers" needs **Read Orders** (`POST /ecom/v1/orders/search`), the Starter thank-you coupon needs **Manage Coupons** (`POST /stores/v2/coupons`), and the owner digest / test email use `accounts.ownerEmail` (install falls back to `pending@example.com`, which we never email). Without the permission, backfill returns "couldn't reach your Wix orders" and the coupon is skipped (review still saved, error logged). The badge, carousel and all-reviews page are served at `/widget/badge`, `/widget/carousel`, `/widget/all` but must be **registered as site plugins/widgets in the Wix app dashboard** before merchants can add them. The digest's dashboard link (`manage.wix.com/dashboard/<siteId>/app/<appId>`) is unverified until a live install. *(Hit by: Claude, 2026-10-14.)*

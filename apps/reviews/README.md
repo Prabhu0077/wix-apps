@@ -28,7 +28,7 @@ See `../../docs/01_visual_ugc_reviews_mvp_spec.md` for the full MVP spec and `AG
 
 ## Tunnel for Wix integration
 
-Wix needs to reach your OAuth callback and webhook endpoints. For local dev, use a tunnel:
+Wix needs to reach your webhook endpoint, and the editor needs to load the storefront element script. For local dev, use a tunnel:
 
 ```bash
 # pick one
@@ -36,25 +36,28 @@ ngrok http 3000
 cloudflared tunnel --url http://localhost:3000
 ```
 
-Then in the Wix Dev Center, set:
-- **Redirect URL** → `https://<your-tunnel>/api/wix/install`
-- **Webhook URL** → `https://<your-tunnel>/api/wix/webhook`
+The app is registered in the Wix app dashboard (company account, Wix Studio workspace). New Wix apps use client-credentials OAuth: there is no Redirect URL. Set up there:
+- **Webhooks** → `https://<host>/api/wix/webhook` for App Installed, App Removed, Fulfillment Status Updated (eCommerce)
+- **Dashboard page** → iframe URL `https://<host>/`
+- **Site plugin / widgets (Custom Element)** → script URL `https://<host>/elements/reviews.js`, tag names `bodham-product-reviews`, `bodham-rating-badge`, `bodham-reviews-carousel`, `bodham-all-reviews`
 
-See `../../docs/02_wix_developer_center_setup.md` for the full registration checklist.
+See `../../docs/GOTCHAS.md` (14 Oct entries) for permissions and env vars.
 
 ## Key Paths
 
 | Path | Purpose |
 |---|---|
 | `app/page.tsx` | Dashboard root (embedded in Wix iframe) |
-| `app/api/wix/install/route.ts` | OAuth callback — runs on app install |
+| `lib/wix/account.ts` | Creates the store's account on the App Installed webhook (or first dashboard open) |
+| `elements/reviews-element.ts` | Storefront custom elements; built to `public/elements/reviews.js` |
+| `app/api/widget/instance/route.ts` | Tells the storefront element which store it is on (Wix token → instanceId) |
 | `app/api/wix/webhook/route.ts` | Webhook fanout (Order Fulfilled, Payment Status Updated, etc.) |
 | `app/api/public/review/[token]/route.ts` | Public review submission form API |
 | `app/api/widget/products/[productId]/route.ts` | Storefront widget data endpoint |
 | `drizzle/schema.ts` | Database schema (see spec §4) |
 | `lib/db.ts` | Drizzle client (Neon HTTP driver) |
 | `lib/env.ts` | zod-validated env access |
-| `lib/wix/oauth.ts` | Wix OAuth token exchange |
+| `lib/wix/oauth.ts` | Wix OAuth: app token per site (client credentials), token info |
 | `lib/wix/webhooks.ts` | Wix webhook signature verification |
 | `lib/wix/client.ts` | Wix REST API client wrapper |
 

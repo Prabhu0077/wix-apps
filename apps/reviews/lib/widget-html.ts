@@ -88,6 +88,11 @@ var b=t.closest(".w-more");if(b){var p=b.parentNode,o=b.getAttribute("aria-expan
 var h=t.closest(".w-helpful");if(h&&h.getAttribute("aria-pressed")!=="true"&&inst){h.setAttribute("aria-pressed","true");var li=h.closest(".w-item"),n=k(li,"helpful")+1;li.dataset.helpful=n;h.querySelector(".w-hn").textContent=" ("+n+")";voted[h.dataset.id]=1;try{localStorage.setItem("w-voted",JSON.stringify(voted))}catch(e){}
 fetch("/api/widget/helpful",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({instanceId:inst,reviewId:h.dataset.id})}).catch(function(){})}})})();`;
 
+// Tells the embedding custom element (public/elements/reviews.js) how tall
+// the page is, so the iframe never shows a scrollbar. Same message shape is
+// checked in elements/reviews-element.ts.
+export const HEIGHT_SCRIPT = `(function(){if(window.parent===window)return;var last=0;function s(){var h=Math.ceil(document.documentElement.scrollHeight);if(h!==last){last=h;window.parent.postMessage({source:"bodham-reviews",height:h},"*")}}addEventListener("load",s);if(window.ResizeObserver)new ResizeObserver(s).observe(document.documentElement);else setInterval(s,1000);s()})();`;
+
 export const WIDGET_CSS = `.w {
   --text: #1f2933;
   --text-2: #5f6b78;
@@ -346,7 +351,7 @@ export const WIDGET_CSS = `.w {
 /** Full HTML document for the iframe. `null` data renders an empty page (unknown store). */
 export function renderWidgetHtml(data: WidgetData | null, now: Date = new Date(), instanceId = ""): string {
   const head = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Customer reviews</title><style>body{margin:0;padding:0 16px;background:transparent}${WIDGET_CSS}</style></head><body>`;
-  if (!data) return `${head}</body></html>`;
+  if (!data) return `${head}<script>${HEIGHT_SCRIPT}</script></body></html>`;
 
   const d = data.display;
   const starColor = d && /^#[0-9a-fA-F]{6}$/.test(d.starColor) ? d.starColor : "#F5A623";
@@ -371,7 +376,7 @@ export function renderWidgetHtml(data: WidgetData | null, now: Date = new Date()
 
   return `${head}${open}<div class="w-head"><div><h2 class="w-title">Customer reviews</h2><div class="w-avg">${average.toFixed(1)}</div>${stars(average, 18, true)}<p class="w-count">Based on ${total} review${total === 1 ? "" : "s"}</p></div><div class="w-bars">${bars}</div></div><div class="w-filter" hidden><span></span><button type="button" class="w-clear">Show all reviews</button></div>${tools}<ul class="w-list">${data.reviews
     .map((r) => item(r, now))
-    .join("")}</ul></section><script>${SCRIPT}</script></body></html>`;
+    .join("")}</ul></section><script>${SCRIPT}</script><script>${HEIGHT_SCRIPT}</script></body></html>`;
 }
 
 
@@ -383,7 +388,7 @@ function themeAttrs(display: Display | null): { starColor: string; theme: "light
 }
 
 function doc(title: string, css: string, bodyHtml: string, script = ""): string {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${esc(title)}</title><style>body{margin:0;padding:0;background:transparent}${css}</style></head><body>${bodyHtml}${script ? `<script>${script}</script>` : ""}</body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${esc(title)}</title><style>body{margin:0;padding:0;background:transparent}${css}</style></head><body>${bodyHtml}${script ? `<script>${script}</script>` : ""}<script>${HEIGHT_SCRIPT}</script></body></html>`;
 }
 
 /**

@@ -10,6 +10,7 @@ import { touchMeta } from "@/lib/account-meta";
 import { readSettings } from "@/lib/settings";
 import { currentPlan } from "@/lib/usage";
 import { verifyWixWebhook, type WixEvent } from "@/lib/wix/webhooks";
+import { ensureAccount } from "@/lib/wix/account";
 import { getWixClient } from "@/lib/wix/service";
 
 export const runtime = "nodejs";
@@ -30,7 +31,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   }
   if (webhook.eventType === "AppInstalled") {
-    after(() => markReinstalled(instanceId));
+    after(() => onInstalled(instanceId));
     return NextResponse.json({ ok: true });
   }
 
@@ -58,7 +59,7 @@ async function markUninstalled(wixInstanceId: string) {
   try {
     const [account] = await db
       .update(accounts)
-      .set({ uninstalledAt: new Date(), wixAccessToken: null, wixRefreshToken: null, wixTokenExpiresAt: null })
+      .set({ uninstalledAt: new Date(), wixAccessToken: null, wixTokenExpiresAt: null })
       .where(eq(accounts.wixInstanceId, wixInstanceId))
       .returning({ id: accounts.id });
     if (!account) return;
@@ -72,13 +73,15 @@ async function markUninstalled(wixInstanceId: string) {
   }
 }
 
-// Reinstall keeps the same instance ID (Wix), so cancel the deletion clock.
-// New tokens arrive through the OAuth install route.
-async function markReinstalled(wixInstanceId: string) {
+// Install (new apps have no install redirect; this webhook is how we learn
+// about a new store). A reinstall keeps the same instance ID, so this also
+// cancels the deletion clock.
+async function onInstalled(wixInstanceId: string) {
   try {
-    await db.update(accounts).set({ uninstalledAt: null }).where(eq(accounts.wixInstanceId, wixInstanceId));
+    const account = await ensureAccount(wixInstanceId);
+    console.log(`[webhook] app installed on instance ${wixInstanceId}: ${account ? "account ready" : "account not created"}`);
   } catch (err) {
-    console.error(`[webhook] failed to clear uninstall for ${wixInstanceId}`, err);
+    console.error(`[webhook] install handling failed for ${wixInstanceId}`, err);
   }
 }
 async function handleOrderFulfilled(wixInstanceId: string, event: WixEvent) {

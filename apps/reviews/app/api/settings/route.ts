@@ -8,6 +8,7 @@ import { eq } from "drizzle-orm";
 import { db, accounts } from "@/lib/db";
 import { readSettings, SettingsSchema, storeNameFrom } from "@/lib/settings";
 import { currentPlan } from "@/lib/usage";
+import { ensureAccount } from "@/lib/wix/account";
 import { resolveInstanceId } from "@/lib/wix/instance";
 
 export const runtime = "nodejs";
@@ -16,7 +17,8 @@ export async function GET(req: NextRequest) {
   const instanceId = resolveInstanceId(req.nextUrl.searchParams, req.headers.get("x-wix-instance"));
   if (!instanceId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  const account = await db.query.accounts.findFirst({ where: eq(accounts.wixInstanceId, instanceId) });
+  // First dashboard open also creates the account if the install webhook was missed.
+  const account = await ensureAccount(instanceId);
   if (!account) return NextResponse.json({ error: "account_not_found" }, { status: 404 });
 
   // The plan decides which paid toggles are unlocked on the page. The

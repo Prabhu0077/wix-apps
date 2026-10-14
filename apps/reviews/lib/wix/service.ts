@@ -1,49 +1,53 @@
+// Server-only: an authenticated WixClient for one site, and the merchant's plan.
+//
+// Tokens come from Create Access Token (client credentials, see oauth.ts).
+// We keep the current one, encrypted, on the account row so a busy store
+// doesn't mint a token per request; a site without an account row yet (the
+// install webhook) just mints one.
+
 import { eq } from "drizzle-orm";
-import { db, accounts } from "@/lib/db";
-import { WixClient } from "./client";
+
 import { decryptToken, encryptToken } from "@/lib/auth/crypto";
+import { db, accounts } from "@/lib/db";
 import type { Plan } from "@/lib/plans";
 
-/**
- * Creates an authenticated WixClient instance for a given Wix Instance ID.
- * Automatically decrypts stored tokens and persists refreshed tokens back to the database.
- */
-export async function getWixClient(wixInstanceId: string): Promise<WixClient> {
+import { WixClient } from "./client";
+import { createAppToken } from "./oauth";
+
+// Renew a little early so a token never expires mid-request.
+const EARLY_MS = 5 * 60 * 1000;
+
+async function tokenFor(wixInstanceId: string, forceNew: boolean): Promise<string> {
   const account = await db.query.accounts.findFirst({
     where: eq(accounts.wixInstanceId, wixInstanceId),
+    columns: { id: true, wixAccessToken: true, wixTokenExpiresAt: true, uninstalledAt: true },
   });
+  if (account?.uninstalledAt) throw new Error(`App was removed from instance ${wixInstanceId}`);
 
-  if (!account) {
-    throw new Error(`Account not found for Wix Instance ID: ${wixInstanceId}`);
+  if (!forceNew && account?.wixAccessToken && account.wixTokenExpiresAt) {
+    if (account.wixTokenExpiresAt.getTime() - EARLY_MS > Date.now()) {
+      try {
+        return decryptToken(account.wixAccessToken);
+      } catch {
+        // Key rotated or row damaged: fall through and mint a new one.
+      }
+    }
   }
 
-  if (!account.wixAccessToken || !account.wixRefreshToken) {
-    throw new Error(`No OAuth tokens stored for Wix Instance ID: ${wixInstanceId}`);
+  const fresh = await createAppToken(wixInstanceId);
+  if (account) {
+    await db
+      .update(accounts)
+      .set({ wixAccessToken: encryptToken(fresh.accessToken), wixTokenExpiresAt: new Date(fresh.expiresAt) })
+      .where(eq(accounts.id, account.id))
+      .catch((err) => console.warn("[service] could not cache token:", err instanceof Error ? err.message : err));
   }
+  return fresh.accessToken;
+}
 
-  const accessToken = decryptToken(account.wixAccessToken);
-  const refreshToken = decryptToken(account.wixRefreshToken);
-
-  return new WixClient({
-    accessToken,
-    refreshToken,
-    onTokensRefreshed: async (fresh) => {
-      const encryptedAccessToken = encryptToken(fresh.accessToken);
-      const encryptedRefreshToken = encryptToken(fresh.refreshToken);
-      const expiresAt = new Date(Date.now() + fresh.expiresInSec * 1000);
-
-      await db
-        .update(accounts)
-        .set({
-          wixAccessToken: encryptedAccessToken,
-          wixRefreshToken: encryptedRefreshToken,
-          wixTokenExpiresAt: expiresAt,
-        })
-        .where(eq(accounts.wixInstanceId, wixInstanceId));
-
-      console.log(`[service] Refreshed and persisted OAuth tokens for Wix Instance ID: ${wixInstanceId}`);
-    },
-  });
+/** Authenticated client for one site. Never throws here; calls throw if the site can't be reached. */
+export async function getWixClient(wixInstanceId: string): Promise<WixClient> {
+  return new WixClient((forceNew) => tokenFor(wixInstanceId, forceNew));
 }
 
 /**
@@ -59,14 +63,18 @@ export async function resolvePlan(wixInstanceId: string, fallback: Plan = "FREE"
     const data = await client.get<{
       instance?: { isFree?: boolean; billing?: { packageName?: string } };
     }>("https://www.wixapis.com/apps/v1/instance");
-    const inst = data?.instance;
-    if (!inst || inst.isFree !== false) return "FREE";
-    const pkg = (inst.billing?.packageName ?? "").toUpperCase();
-    if (pkg.includes("GROWTH")) return "GROWTH";
-    if (pkg.includes("PRO")) return "PRO";
-    if (pkg.includes("STARTER")) return "STARTER";
-    return "STARTER"; // paid, unknown package → lowest paid tier
+    return planFromInstance(data?.instance);
   } catch {
     return fallback;
   }
+}
+
+/** Plan from a Get App Instance `instance` object. Exported for tests. */
+export function planFromInstance(inst: { isFree?: boolean; billing?: { packageName?: string } } | undefined): Plan {
+  if (!inst || inst.isFree !== false) return "FREE";
+  const pkg = (inst.billing?.packageName ?? "").toUpperCase();
+  if (pkg.includes("GROWTH")) return "GROWTH";
+  if (pkg.includes("PRO")) return "PRO";
+  if (pkg.includes("STARTER")) return "STARTER";
+  return "STARTER"; // paid, unknown package → lowest paid tier
 }

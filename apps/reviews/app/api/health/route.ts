@@ -33,14 +33,16 @@ export async function GET(req: NextRequest) {
   const now = Date.now();
 
   // 1. Connection to Wix and the store catalog.
-  const connected = Boolean(account.wixAccessToken && account.wixRefreshToken);
+  // Connected = we can get a token for this site (app installed, keys right).
+  const client = await getWixClient(instanceId);
+  let connected = false;
   let catalog: Awaited<ReturnType<typeof getCatalogVersion>> = null;
-  if (connected) {
-    try {
-      catalog = await getCatalogVersion(await getWixClient(instanceId), instanceId);
-    } catch {
-      catalog = null;
-    }
+  try {
+    await client.get("https://www.wixapis.com/apps/v1/instance");
+    connected = true;
+    catalog = await getCatalogVersion(client, instanceId);
+  } catch {
+    connected = false;
   }
   if (!connected) {
     checks.push({

@@ -32,6 +32,12 @@ importers:
       '@paralleldrive/cuid2':
         specifier: ^2.2.2
         version: 2.3.1
+      '@wix/sdk':
+        specifier: ^1.21.18
+        version: 1.21.18
+      '@wix/site':
+        specifier: ^1.68.0
+        version: 1.68.0
       drizzle-orm:
         specifier: ^0.36.4
         version: 0.36.4(@neondatabase/serverless@0.10.4)(@types/pg@8.11.6)(@types/react@19.2.15)(react@19.2.6)
@@ -69,6 +75,9 @@ importers:
       drizzle-kit:
         specifier: ^0.28.0
         version: 0.28.1
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
       eslint:
         specifier: ^9.18.0
         version: 9.39.4(jiti@2.7.0)
@@ -190,6 +199,10 @@ packages:
   '@aws/lambda-invoke-store@0.2.4':
     resolution: {integrity: sha512-iY8yvjE0y651BixKNPgmv1WrQc+GZ142sb0z4gYnChDDY2YqI4P/jsSopBWrKfAt7LOJAkOXt7rC/hms+WclQQ==}
     engines: {node: '>=18.0.0'}
+
+  '@babel/runtime@7.29.10':
+    resolution: {integrity: sha512-NpugTzbKgGrNe45Ui32cN8vCFFMxVtP/9rtfwv0nP5FRDAjvYBxJcLVpYA9mr1jxP6cnIT7x9LUzuDTbWYYNRA==}
+    engines: {node: '>=6.9.0'}
 
   '@drizzle-team/brocli@0.10.2':
     resolution: {integrity: sha512-z33Il7l5dKjUgGULTqBsQBQwckHh5AbIuxhdsIxDDiZAzBOrZO6q9ogcWC65kU382AfynTfgNumVcNIjuIua6w==}
@@ -1212,6 +1225,90 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  '@wix/analytics@1.20.0':
+    resolution: {integrity: sha512-4fvUmlDO7PM4MH22CIz/2DuR604lkzNxzLIpTWciVs8JViQ7+svmKyCxizvzHzPsAX3yx+dcDTu255KcUwqcoA==}
+
+  '@wix/authentication@1.17.0':
+    resolution: {integrity: sha512-1Z6wzATk46qOmm4Pk63fd5kCPjgtxmXBt/H5uouEhi9MiT6YuN7iDfTezLwL/dsrIR9Z4WVvrikJQw9xRKC9Tg==}
+
+  '@wix/auto_sdk_headless-site-assets_scripts@1.0.15':
+    resolution: {integrity: sha512-8mPxqiTXJZEX2lnh4MlWMns40oXYrCeATqdMo7dr3A/pfJ8vZz91w0b+j6IJHRmPBQaEzXQI1HOg5oBPkVLmjw==}
+
+  '@wix/auto_sdk_identity_authentication@1.0.69':
+    resolution: {integrity: sha512-aKZIIPa2jAUeURJiP4cjs5WrSubtAjES4mUNi1nOsFiDbq0Hvi0GncCfbidAQr/V866na87GghJZ9x11CqTn5w==}
+
+  '@wix/auto_sdk_identity_connection@1.0.1':
+    resolution: {integrity: sha512-PkZbmO30GEfztlpKXXxc/693sjaCPlE4RsGBzHq+RuUXig9d+35LVACO3ZrrpTVVZJbOgwLCgiIsDbww4QUG4g==}
+
+  '@wix/auto_sdk_identity_oauth@1.0.58':
+    resolution: {integrity: sha512-nicuKwfa+dWNcxBDFDoX/SRCjTsVpmANoiNSFVUpiMazT5PW8JW0B32Eo9BYM0fucwUp3kJo9PDnrhMfQCYQNA==}
+
+  '@wix/auto_sdk_identity_recovery@1.0.54':
+    resolution: {integrity: sha512-hOJFz/gVvbZgHiDfzFAUDnuGjRY0krtvsfdlZnv6fOV9UzPfBdYZ/nZLeqpuOwt2koiWsGATmjIgksJgMD9MQw==}
+
+  '@wix/auto_sdk_identity_sign-on-policy@1.0.6':
+    resolution: {integrity: sha512-e0AJgf6+y333wFGLBDlr7HE3i0reocDtbAcTrCdl8/sX3noDorQX/Bsr10Sui4APEsocE8PYXhQoyhNItbYosQ==}
+
+  '@wix/auto_sdk_identity_verification@1.0.55':
+    resolution: {integrity: sha512-b0HCWX82xiDCvXIz0FMWUjFyA8RpsOqvFc3eyGVshMhZBvxK6nQomlEfJe3Boo/eC9ZO8h7KmmbmHGP61/zs+A==}
+
+  '@wix/auto_sdk_redirects_redirects@1.0.58':
+    resolution: {integrity: sha512-5DnJJbILBywnHDg8Z+KjvQO/OrVIqjZgNMJ5DPrkGvtof84oULW1FghPyQcesEeL0mVAn8l6EW6vgnZgfBE4IQ==}
+
+  '@wix/consent-policy-manager@1.15.0':
+    resolution: {integrity: sha512-XIQeVkNYEdCmAA/jLVTFxzZ7E6lwHbd17HecHZaeCcWjZwVoGuFPlH4mAs4sdrUisMGxe3MJhIHWsoGZ3nBwmA==}
+
+  '@wix/error-handler-types@1.20.0':
+    resolution: {integrity: sha512-tMi5BucbWs6CnwIoMaPteWu4J6TeI6O2TsYx5hznKERz509We3ZKi+liJLp+oe2Kd/IUxZr3BAh1Zr+bcbKMVA==}
+
+  '@wix/headless-localization-utils@1.0.15':
+    resolution: {integrity: sha512-ZM1aw52LH4nTcWRIYuFcONQbrl6zdevtXCry3PwaA9J4ty7m+G7o/L4Xv3RzKsYq7djsTeVLggFgdW6/6q2jbQ==}
+
+  '@wix/headless-node@1.45.0':
+    resolution: {integrity: sha512-kXg19nsPJpwSTy+iZw1aiIoxWnTRIw07CJKOqnrq1WB7sphrer930a0mIg1sji0Mm7uyM9Q4En8sTFjYq+IViA==}
+
+  '@wix/headless-site-assets@1.0.15':
+    resolution: {integrity: sha512-FT42DdCKtISz4UutVKPNI15dAYwNMmLyQQ8hqO0OcWIQHnrSgI1vjCQz0gIvB0TX5m/hJGPGh2qRmfMSr11/dg==}
+
+  '@wix/identity@1.0.249':
+    resolution: {integrity: sha512-ApJUIRqngPAXjOBNn4Uape0jUNOkzgFZnTVrKGQDSCzuxSy2hS9DmsCgDTZH1I52W7O2mJOEQlVHpCCZ94y9dg==}
+
+  '@wix/image-kit@1.126.0':
+    resolution: {integrity: sha512-OeusVBd578TPLLR+Kyvr5SrzHdGm67aW5YHq75ervmdhpVBhtSLm0Fifbcb2N3hJXEuEeYSYTk9ZcZKNj+QzjA==}
+
+  '@wix/monitoring-common@1.16.0':
+    resolution: {integrity: sha512-mK+MuOXcQrlICVplbo26HmTxds/Ab4whSWWGOGWFrUIdvh3nCiWaL3gA4xkUVDV/KGdHBC16lP+AkfWSrdh/bw==}
+
+  '@wix/monitoring-types@1.1.0':
+    resolution: {integrity: sha512-BkGRTEDyPtvn/+TByciSUZEIwfgpxsXYcZJn26CIzwPqiehgk+akFROHArI8aAMzbAqs/+2OKerEm7U8ZDT7hQ==}
+
+  '@wix/monitoring-velo@1.35.0':
+    resolution: {integrity: sha512-NisG8ps8GdPdUD+JiH+Jut98tq+RCEtgkYzQgiggkDqw0URxgh47WSLeoQbe2h6AI/LnCpPSztq9cAsSEQ6biw==}
+
+  '@wix/monitoring@1.2.0':
+    resolution: {integrity: sha512-ep1Ul32F9hGI+RqUMZbN5LaCkiFNwtpy2zcqbUhgi+6HDD/cJ6d+CQO7kbnXNVq5hIZBNKgffVS1WLBGJjuPSQ==}
+
+  '@wix/multilingual-manager@1.12.0':
+    resolution: {integrity: sha512-+5Garq9k/p/OPeQJUngHvKkUys9L4QOF+WzHeQiwcGnyDwy8jaIv6CKKTFwUawVjCfZktHiJQCoM4sCQe5zQkQ==}
+
+  '@wix/redirects@1.0.131':
+    resolution: {integrity: sha512-223UZJp+cg4zclxi9qUM5VTX1Ra3opiqFDs2Vi/ZMv8PZ8xqG3mqO6435xJPQFvRmEocokarEW0FG4I3+goTVQ==}
+
+  '@wix/sdk-context@0.0.1':
+    resolution: {integrity: sha512-ziSzrceUC0KFn4IJIVBn1cXXKrZ49ZKG5tQ6fl+TpontyUw5p/Z4VofFUUsnqNl9JYCpYNTzIXpzwok93Vrl8A==}
+
+  '@wix/sdk-runtime@1.0.26':
+    resolution: {integrity: sha512-Vsg9iMXZsaJeqojk1JpP/QzU3BywWtQ+cqeL198frJ5JEmJRh74pU6lq0zYhcrMHte3aGIAnfFy5JPXYEv1tNA==}
+
+  '@wix/sdk-types@1.17.12':
+    resolution: {integrity: sha512-pUC8XT0dr5jNoKRRZrBesqvupwNc13H1Af8HXcBG3nS50MbmutsSNJF+ouD0NGuU9MYEHznRRyrET4fs7T8Ucg==}
+
+  '@wix/sdk@1.21.18':
+    resolution: {integrity: sha512-YWiiWoOBTXsYSvQ7NwdOsvfV3OJd+XlfXVDYRA4diDH+3fKKXaWuVam8ZG+1z5xtVc8odX3UYJBFKybQ0E+CDA==}
+
+  '@wix/site@1.68.0':
+    resolution: {integrity: sha512-fqxPOsb/pT1a2OrzDyYL1dcLdQjqK7YyaXe5WlYM4UUFuh/tDfETHjfNnltlkO9V5uANOtD4AHllCNDg248QKQ==}
+
   abbrev@2.0.0:
     resolution: {integrity: sha512-6/mh1E2u2YgEsCHdY0Yx5oW+61gZU+1vXaoiHHrpKeuRNNgFvS+/jrwHiQhB5apAf5oB7UB7E19ol2R2LKH8hQ==}
     engines: {node: ^14.17.0 || ^16.13.0 || >=18.0.0}
@@ -1906,6 +2003,10 @@ packages:
     resolution: {integrity: sha512-ZUKRh6/kUFoAiTAtTYPZJ3hw9wNxx+BIBOijnlG9PnrJsCcSjs1wyyD6vJpaYtgnzDrKYRSqf3OO6Rfa93xsRg==}
     engines: {node: '>= 0.4'}
 
+  graphql@17.0.2:
+    resolution: {integrity: sha512-FRWbddMxfkjiB7z+aQDWIR+E34xo9I8c9mtK2RPv8PmMzKRvrdsreHL/Ui/TmwHJfhHChEtsFPyMHKI+xuarQQ==}
+    engines: {node: ^22.0.0 || ^24.0.0 || ^25.0.0 || >=26.0.0}
+
   has-bigints@1.1.0:
     resolution: {integrity: sha512-R3pbpkcIqv2Pm3dUwgjclDRVmWpTJW2DcMzcIhEXEx1oh/CEMObMm3KLmRJOdvhM7o4uQBnwr8pzRK2sJWIqfg==}
     engines: {node: '>= 0.4'}
@@ -2091,6 +2192,9 @@ packages:
     resolution: {integrity: sha512-AC/7JofJvZGrrneWNaEnJeOLUx+JlGt7tNa0wZiRPT4MY1wmfKjt2+6O2p2uz2+skll8OZZmJMNqeke7kKbNgQ==}
     hasBin: true
 
+  jose@5.10.0:
+    resolution: {integrity: sha512-s+3Al/p9g32Iq+oqXxkW//7jk2Vig6FF1CFqzVXoTUXt2qz89YWbL+OwS17NFYEvxC35n0FKeGO2LGYSxeM2Gg==}
+
   jose@6.2.3:
     resolution: {integrity: sha512-YYVDInQKFJfR/xa3ojUTl8c2KoTwiL1R5Wg9YCydwH0x0B9grbzlg5HC7mMjCtUJjbQ/YnGEZIhI5tCgfTb4Hw==}
 
@@ -2181,6 +2285,9 @@ packages:
 
   lodash.once@4.1.1:
     resolution: {integrity: sha512-Sb487aTOCr9drQVL8pIxOzVhafOjZN9UU54hiN8PU3uAiSV7lx1yYNpbNmex2PK6dSJoNTSJUUswT651yww3Mg==}
+
+  lodash@4.18.1:
+    resolution: {integrity: sha512-dMInicTPVE8d1e5otfwmmjlxkZoUpiVLwyeTdUsi/Caj/gfzzblBcCE5sRHV/AsjuCmxWrte2TNGSYuCeCq+0Q==}
 
   loose-envify@1.4.0:
     resolution: {integrity: sha512-lyuxPGr/Wfhrlem2CL/UcnUc1zcqKAImBDzukY7Y5F/yQiNdko6+fRLevlw1HgMySw7f611UIY408EtxRSoK3Q==}
@@ -2689,6 +2796,10 @@ packages:
     resolution: {integrity: sha512-XleUoc9uwGXqjWwXaUTZAmzMcFZ5858QA2vvx1Ur5xIcixXIP+8LnFDgRplU30us6teqdlskFfu+ae4K79Ooew==}
     engines: {node: '>= 0.8.0'}
 
+  type-fest@4.41.0:
+    resolution: {integrity: sha512-TeTSQ6H5YHvpqVwBRcnLDCBnDOHWYu7IvGbHT6N8AOymcr9PJGjc1GTtiWZTYg0NCgYwvnYWEkVChQAr9bjfwA==}
+    engines: {node: '>=16'}
+
   typed-array-buffer@1.0.3:
     resolution: {integrity: sha512-nAYYwfY3qnzX30IkA6AQZjVbtK6duGontcQm1WSG1MD94YLqK0515GNApXkoxKOWMusVssAHWLh9SeaoefYFGw==}
     engines: {node: '>= 0.4'}
@@ -3011,6 +3122,8 @@ snapshots:
       tslib: 2.8.1
 
   '@aws/lambda-invoke-store@0.2.4': {}
+
+  '@babel/runtime@7.29.10': {}
 
   '@drizzle-team/brocli@0.10.2': {}
 
@@ -3765,6 +3878,146 @@ snapshots:
 
   '@unrs/resolver-binding-win32-x64-msvc@1.12.2':
     optional: true
+
+  '@wix/analytics@1.20.0': {}
+
+  '@wix/authentication@1.17.0':
+    dependencies:
+      '@wix/sdk-runtime': 1.0.26
+      '@wix/sdk-types': 1.17.12
+
+  '@wix/auto_sdk_headless-site-assets_scripts@1.0.15':
+    dependencies:
+      '@wix/sdk-runtime': 1.0.26
+      '@wix/sdk-types': 1.17.12
+
+  '@wix/auto_sdk_identity_authentication@1.0.69':
+    dependencies:
+      '@wix/sdk-runtime': 1.0.26
+      '@wix/sdk-types': 1.17.12
+
+  '@wix/auto_sdk_identity_connection@1.0.1':
+    dependencies:
+      '@wix/sdk-runtime': 1.0.26
+      '@wix/sdk-types': 1.17.12
+
+  '@wix/auto_sdk_identity_oauth@1.0.58':
+    dependencies:
+      '@wix/sdk-runtime': 1.0.26
+      '@wix/sdk-types': 1.17.12
+
+  '@wix/auto_sdk_identity_recovery@1.0.54':
+    dependencies:
+      '@wix/sdk-runtime': 1.0.26
+      '@wix/sdk-types': 1.17.12
+
+  '@wix/auto_sdk_identity_sign-on-policy@1.0.6':
+    dependencies:
+      '@wix/sdk-runtime': 1.0.26
+      '@wix/sdk-types': 1.17.12
+
+  '@wix/auto_sdk_identity_verification@1.0.55':
+    dependencies:
+      '@wix/sdk-runtime': 1.0.26
+      '@wix/sdk-types': 1.17.12
+
+  '@wix/auto_sdk_redirects_redirects@1.0.58':
+    dependencies:
+      '@wix/sdk-runtime': 1.0.26
+      '@wix/sdk-types': 1.17.12
+
+  '@wix/consent-policy-manager@1.15.0': {}
+
+  '@wix/error-handler-types@1.20.0':
+    dependencies:
+      '@babel/runtime': 7.29.10
+
+  '@wix/headless-localization-utils@1.0.15':
+    dependencies:
+      '@wix/headless-node': 1.45.0
+      '@wix/headless-site-assets': 1.0.15
+
+  '@wix/headless-node@1.45.0':
+    dependencies:
+      '@babel/runtime': 7.29.10
+      '@wix/monitoring-velo': 1.35.0
+      '@wix/sdk-runtime': 1.0.26
+
+  '@wix/headless-site-assets@1.0.15':
+    dependencies:
+      '@wix/auto_sdk_headless-site-assets_scripts': 1.0.15
+
+  '@wix/identity@1.0.249':
+    dependencies:
+      '@wix/auto_sdk_identity_authentication': 1.0.69
+      '@wix/auto_sdk_identity_connection': 1.0.1
+      '@wix/auto_sdk_identity_oauth': 1.0.58
+      '@wix/auto_sdk_identity_recovery': 1.0.54
+      '@wix/auto_sdk_identity_sign-on-policy': 1.0.6
+      '@wix/auto_sdk_identity_verification': 1.0.55
+
+  '@wix/image-kit@1.126.0':
+    dependencies:
+      '@babel/runtime': 7.29.10
+      tslib: 2.8.1
+
+  '@wix/monitoring-common@1.16.0': {}
+
+  '@wix/monitoring-types@1.1.0': {}
+
+  '@wix/monitoring-velo@1.35.0':
+    dependencies:
+      '@wix/monitoring': 1.2.0
+      '@wix/monitoring-common': 1.16.0
+      '@wix/monitoring-types': 1.1.0
+
+  '@wix/monitoring@1.2.0':
+    dependencies:
+      '@wix/monitoring-types': 1.1.0
+
+  '@wix/multilingual-manager@1.12.0':
+    dependencies:
+      '@wix/headless-localization-utils': 1.0.15
+      lodash: 4.18.1
+
+  '@wix/redirects@1.0.131':
+    dependencies:
+      '@wix/auto_sdk_redirects_redirects': 1.0.58
+
+  '@wix/sdk-context@0.0.1': {}
+
+  '@wix/sdk-runtime@1.0.26':
+    dependencies:
+      '@wix/sdk-context': 0.0.1
+      '@wix/sdk-types': 1.17.12
+
+  '@wix/sdk-types@1.17.12':
+    dependencies:
+      '@wix/error-handler-types': 1.20.0
+      '@wix/monitoring-types': 1.1.0
+      type-fest: 4.41.0
+
+  '@wix/sdk@1.21.18':
+    dependencies:
+      '@wix/identity': 1.0.249
+      '@wix/image-kit': 1.126.0
+      '@wix/redirects': 1.0.131
+      '@wix/sdk-context': 0.0.1
+      '@wix/sdk-runtime': 1.0.26
+      '@wix/sdk-types': 1.17.12
+      jose: 5.10.0
+      type-fest: 4.41.0
+    optionalDependencies:
+      graphql: 17.0.2
+
+  '@wix/site@1.68.0':
+    dependencies:
+      '@babel/runtime': 7.29.10
+      '@wix/analytics': 1.20.0
+      '@wix/authentication': 1.17.0
+      '@wix/consent-policy-manager': 1.15.0
+      '@wix/multilingual-manager': 1.12.0
+      '@wix/sdk-types': 1.17.12
 
   abbrev@2.0.0: {}
 
@@ -4625,6 +4878,9 @@ snapshots:
 
   gopd@1.2.0: {}
 
+  graphql@17.0.2:
+    optional: true
+
   has-bigints@1.1.0: {}
 
   has-flag@4.0.0: {}
@@ -4824,6 +5080,8 @@ snapshots:
   jiti@2.7.0:
     optional: true
 
+  jose@5.10.0: {}
+
   jose@6.2.3: {}
 
   js-beautify@1.15.4:
@@ -4919,6 +5177,8 @@ snapshots:
   lodash.merge@4.6.2: {}
 
   lodash.once@4.1.1: {}
+
+  lodash@4.18.1: {}
 
   loose-envify@1.4.0:
     dependencies:
@@ -5496,6 +5756,8 @@ snapshots:
   type-check@0.4.0:
     dependencies:
       prelude-ls: 1.2.1
+
+  type-fest@4.41.0: {}
 
   typed-array-buffer@1.0.3:
     dependencies:

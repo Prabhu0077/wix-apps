@@ -6,6 +6,7 @@ import { and, count, eq, sql } from "drizzle-orm";
 
 import { db, accounts, reviews, reviewRequests } from "@/lib/db";
 import { env } from "@/lib/env";
+import { ensureAccount } from "@/lib/wix/account";
 import { resolveInstanceId } from "@/lib/wix/instance";
 import { r2Enabled } from "@/lib/r2";
 import { getStoreProfile } from "@/lib/store-profile";
@@ -19,9 +20,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const account = await db.query.accounts.findFirst({
-    where: eq(accounts.wixInstanceId, instanceId),
-  });
+  // First dashboard open also creates the account if the install webhook was missed.
+  const account = await ensureAccount(instanceId);
   if (!account) {
     return NextResponse.json({ error: "account_not_found" }, { status: 404 });
   }
