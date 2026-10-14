@@ -39,7 +39,7 @@
   - Starter (`lib/features.ts`): one reminder 7 days after the request, thank-you coupon (5–50%, single use, 90 days, any rating, review marked incentivized), carousel (`/widget/carousel`) and all-reviews page (`/widget/all`). Plan page "coming soon" removed for these.
   - Widget summary now counts all published reviews (was the newest 50).
   - Tests: `tests/features.test.ts` (spam, gates, coupon, emails, digest, badge/carousel/all, orders search); 26 browser checks on the built app with mocked APIs.
-  - Migration `0007` (review_votes, reviews.helpful_count, review_requests.reminder_sent_at / coupon_code) generated, **not run**.
+  - Migration `0007` (review_votes, reviews.helpful_count, review_requests.reminder_sent_at / coupon_code) applied to Neon on 14 Oct (founder yes; checked before and after: new table, 3 columns, unique index; tables empty).
   - Founder needed: Read Orders + Manage Coupons permissions, register the three new site plugins (see GOTCHAS 14 Oct).
 
 ## 0. Bugs and gaps found in the current code
