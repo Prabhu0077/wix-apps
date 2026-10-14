@@ -13,6 +13,10 @@ export function useInstance(): string | null {
 const ERROR_TEXT: Record<string, string> = {
   unauthorized: "Open this page from your Wix dashboard so we can confirm your site.",
   account_not_found: "We couldn't find this site. Reinstall the app from the Wix App Market.",
+  too_soon: "You just did that. Try again a little later.",
+  no_owner_email: "We don't have your email address yet. Reopen the app from your Wix dashboard and try again.",
+  email_failed: "The email didn't send. Try again in a few minutes.",
+  wix_unavailable: "We couldn't reach your Wix orders just now. Try again in a few minutes.",
 };
 
 export class ApiError extends Error {}

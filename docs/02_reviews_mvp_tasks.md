@@ -31,8 +31,16 @@
   - T8.1 CSV import on the Reviews tab: column mapping with guesses for common exports, product match ID → SKU (V1 only) → URL/slug → name, batches of 500 (no row limit), report of rows that failed, re-import adds nothing (`source_ref` unique per store). 1,000-row test file passes. T8.2 one-click import from Wix Reviews (Query Reviews API, keeps moderation status, dates, replies, photo links).
   - T1.1 `fixtures/order-fulfilled.json` + `scripts/post-test-webhook.mjs` (local only); checked against a dev server.
   - `pnpm test` (tsx) runs `tests/core.test.ts` and `tests/import.test.ts`. `next build` passes on the PC.
-  - Migration `0006_incentive_source_ref` generated, **not run**.
+  - Migration `0006_incentive_source_ref` applied to Neon on 14 Oct (checked before and after; tables empty).
   - Still open, founder or live store needed: T5.1, T6.2, T7.2, T9.2 (Wix app dashboard), T3.3/T9.3 nothing left in code, R13 JSON-LD (test store published), confirming the AppRemoved event name, R2 activation + bucket CORS for photo uploads.
+
+- 2026-10-14, Free and Starter extras to compete with Fera (plan: `03_reviews_roadmap.md`). Built and tested, not yet on a live store:
+  - Free: rating badge (`/widget/badge`), star filter and "Helpful" votes (`/api/widget/helpful`, one vote per hashed visitor), rule-based spam check (`lib/spam.ts`; flagged reviews wait even with auto-publish), daily new-review email to the owner, "Send me a test email" (sample form at `/review/demo`, saves nothing), "Ask recent customers" (orders fulfilled in last 30 days, once a day, within the plan limit).
+  - Starter (`lib/features.ts`): one reminder 7 days after the request, thank-you coupon (5–50%, single use, 90 days, any rating, review marked incentivized), carousel (`/widget/carousel`) and all-reviews page (`/widget/all`). Plan page "coming soon" removed for these.
+  - Widget summary now counts all published reviews (was the newest 50).
+  - Tests: `tests/features.test.ts` (spam, gates, coupon, emails, digest, badge/carousel/all, orders search); 26 browser checks on the built app with mocked APIs.
+  - Migration `0007` (review_votes, reviews.helpful_count, review_requests.reminder_sent_at / coupon_code) generated, **not run**.
+  - Founder needed: Read Orders + Manage Coupons permissions, register the three new site plugins (see GOTCHAS 14 Oct).
 
 ## 0. Bugs and gaps found in the current code
 

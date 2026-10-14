@@ -5,6 +5,7 @@ import { Suspense, useEffect, useState } from "react";
 
 import { Stars } from "@/components/ui/Stars";
 import { type Stats } from "@/components/dashboard/types";
+import { BackfillCard } from "@/components/dashboard/BackfillCard";
 import { HealthCard } from "@/components/dashboard/HealthCard";
 import { UsageCard } from "@/components/dashboard/UsageCard";
 import { api, ApiError, useInstance } from "@/lib/dashboard-client";
@@ -140,6 +141,8 @@ function Overview() {
       </section>
 
       <HealthCard instance={instance} />
+
+      <BackfillCard instance={instance} />
 
       {stats.usage.level === "ok" && <UsageCard stats={stats} />}
 

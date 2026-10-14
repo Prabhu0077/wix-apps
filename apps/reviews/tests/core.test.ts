@@ -71,6 +71,7 @@ async function main() {
           verified: true,
           imported: false,
           incentivized: true,
+          helpful: 2,
           writtenAt: "2026-10-10T00:00:00Z",
           media: [],
         },

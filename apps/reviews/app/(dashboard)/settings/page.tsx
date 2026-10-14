@@ -5,9 +5,20 @@ import { Suspense, useEffect, useState } from "react";
 import { PolicyCard } from "@/components/dashboard/PolicyCard";
 import { Stars } from "@/components/ui/Stars";
 import { api, ApiError, useInstance } from "@/lib/dashboard-client";
+import { FEATURE_MIN_PLAN, hasFeature, REMINDER_AFTER_DAYS, type Feature } from "@/lib/features";
 import { DEFAULT_SETTINGS, type AppSettings } from "@/lib/settings";
 
-function Toggle({ id, checked, onChange }: { id: string; checked: boolean; onChange: (v: boolean) => void }) {
+function Toggle({
+  id,
+  checked,
+  onChange,
+  disabled,
+}: {
+  id: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  disabled?: boolean;
+}) {
   return (
     <button
       id={id}
@@ -15,8 +26,22 @@ function Toggle({ id, checked, onChange }: { id: string; checked: boolean; onCha
       role="switch"
       aria-checked={checked}
       className="toggle"
+      disabled={disabled}
       onClick={() => onChange(!checked)}
     />
+  );
+}
+
+const PLAN_NAME: Record<string, string> = { STARTER: "Starter", PRO: "Pro", GROWTH: "Growth" };
+
+/** "Starter plan" label with a link to the Plan tab, shown on locked settings. */
+function PlanLock({ feature, instance }: { feature: Feature; instance: string | null }) {
+  const href = instance ? `/billing?instance=${encodeURIComponent(instance)}` : "/billing";
+  return (
+    <p className="help">
+      <span className="badge badge-hidden">{PLAN_NAME[FEATURE_MIN_PLAN[feature]]} plan</span>{" "}
+      <a href={href}>See plans</a>
+    </p>
   );
 }
 
@@ -24,14 +49,17 @@ function Settings() {
   const instance = useInstance();
   const [s, setS] = useState<AppSettings | null>(null);
   const [storeName, setStoreName] = useState<string | null>(null);
+  const [plan, setPlan] = useState<string>("FREE");
   const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
   const [notice, setNotice] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
 
   useEffect(() => {
-    api<{ settings: AppSettings; storeName: string | null }>(instance, "/api/settings")
+    api<{ settings: AppSettings; storeName: string | null; plan?: string }>(instance, "/api/settings")
       .then((d) => {
         setS(d.settings);
         setStoreName(d.storeName);
+        setPlan(d.plan ?? "FREE");
       })
       .catch((e: unknown) => setNotice({ kind: "error", text: e instanceof ApiError ? e.message : "Couldn't load settings." }));
   }, [instance]);
@@ -54,6 +82,22 @@ function Settings() {
       setSaving(false);
     }
   }
+
+  async function sendTest() {
+    setTesting(true);
+    setNotice(null);
+    try {
+      const d = await api<{ sentTo: string }>(instance, "/api/settings/test-email", { method: "POST", body: {} });
+      setNotice({ kind: "ok", text: `Test email sent to ${d.sentTo}. It uses your saved settings.` });
+    } catch (e: unknown) {
+      setNotice({ kind: "error", text: e instanceof ApiError ? e.message : "The test email didn't send." });
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  const canRemind = hasFeature(plan, "reminder");
+  const canCoupon = hasFeature(plan, "coupon");
 
   if (!s) {
     return notice ? <div className="notice notice-error">{notice.text}</div> : <div className="loading">Loading settings…</div>;
@@ -107,6 +151,86 @@ function Settings() {
             onChange={(e) => set("fromName", e.target.value)}
           />
         </div>
+        <div className="setting">
+          <div>
+            <label className="label" htmlFor="remind">
+              Send one reminder
+            </label>
+            <p className="help">
+              If a customer hasn&apos;t reviewed {REMINDER_AFTER_DAYS} days after the first email, send one short
+              reminder. Never more than one.
+            </p>
+            {!canRemind && <PlanLock feature="reminder" instance={instance} />}
+          </div>
+          <Toggle
+            id="remind"
+            checked={canRemind && s.reminderEnabled}
+            disabled={!canRemind}
+            onChange={(v) => set("reminderEnabled", v)}
+          />
+        </div>
+        <div className="setting">
+          <div>
+            <span className="label">See what customers get</span>
+            <p className="help">Sends the email to your own address, using your saved settings. Its links open a sample form.</p>
+          </div>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={sendTest} disabled={testing}>
+            {testing ? "Sending…" : "Send me a test email"}
+          </button>
+        </div>
+      </section>
+
+      <section className="card" aria-labelledby="coupon-title">
+        <div className="card-head">
+          <div>
+            <h2 className="card-title" id="coupon-title">
+              Thank-you coupon
+            </h2>
+            <p className="card-sub">
+              Give a one-time discount code to every customer who sends a review, whatever the rating.
+            </p>
+          </div>
+        </div>
+        <div className="setting">
+          <div>
+            <label className="label" htmlFor="coupon">
+              Give a discount code for a review
+            </label>
+            <p className="help">
+              The email mentions it, and the code shows after the review is sent. Single use, valid for 90 days. These
+              reviews are marked &quot;Received an incentive&quot; on your store, as consumer law requires.
+            </p>
+            {!canCoupon && <PlanLock feature="coupon" instance={instance} />}
+          </div>
+          <Toggle
+            id="coupon"
+            checked={canCoupon && s.couponEnabled}
+            disabled={!canCoupon}
+            onChange={(v) => set("couponEnabled", v)}
+          />
+        </div>
+        {canCoupon && s.couponEnabled && (
+          <div className="setting">
+            <div>
+              <label className="label" htmlFor="percent">
+                Discount
+              </label>
+              <p className="help">Between 5% and 50% off one order.</p>
+            </div>
+            <div className="range">
+              <input
+                id="percent"
+                type="range"
+                min={5}
+                max={50}
+                step={5}
+                value={s.couponPercent}
+                onChange={(e) => set("couponPercent", Number(e.target.value))}
+              />
+              <span className="range-n">{s.couponPercent}%</span>
+            </div>
+          </div>
+        )}
       </section>
 
       <section className="card" aria-labelledby="publish-title">
@@ -128,6 +252,25 @@ function Settings() {
             </p>
           </div>
           <Toggle id="auto" checked={s.autoPublish} onChange={(v) => set("autoPublish", v)} />
+        </div>
+        <div className="setting">
+          <div>
+            <span className="label">Spam check</span>
+            <p className="help">
+              Reviews with links, phone numbers or email addresses, bad language, all capitals or repeated text always
+              wait for you, even with automatic publishing on. The rating never matters.
+            </p>
+          </div>
+          <span className="badge badge-approved">Always on</span>
+        </div>
+        <div className="setting">
+          <div>
+            <label className="label" htmlFor="digest">
+              Email me about new reviews
+            </label>
+            <p className="help">One email a day, only on days new reviews arrive.</p>
+          </div>
+          <Toggle id="digest" checked={s.notifyNewReviews} onChange={(v) => set("notifyNewReviews", v)} />
         </div>
       </section>
 

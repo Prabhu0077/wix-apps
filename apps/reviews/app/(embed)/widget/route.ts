@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
     const loaded = await loadWidgetData(instanceId, productId);
     if (loaded) after(loaded.markSeen);
     // Never show an error on a shop page: unknown store -> empty page.
-    return new Response(renderWidgetHtml(loaded?.data ?? null), { status: 200, headers: HEADERS });
+    return new Response(renderWidgetHtml(loaded?.data ?? null, new Date(), instanceId), { status: 200, headers: HEADERS });
   } catch (err) {
     console.error("[widget] render failed", err);
     return new Response(renderWidgetHtml(null), { status: 200, headers: { ...HEADERS, "Cache-Control": "no-store" } });

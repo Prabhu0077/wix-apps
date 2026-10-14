@@ -6,7 +6,7 @@ App-specific context. Read the **root `AGENTS.md`** first, then `../../docs/01_r
 
 ## What this app is
 
-"Product Reviews" for Wix Stores, made by Bodham Labs (public name still open — change `lib/product.ts`). App #1 in the portfolio. Scope and plans: `../../docs/01_reviews_app_prd_v2.md`. Task list with progress at the top: `../../docs/02_reviews_mvp_tasks.md`. Known traps: `../../docs/GOTCHAS.md`.
+"Product Reviews" for Wix Stores, made by Bodham Labs (public name still open — change `lib/product.ts`). App #1 in the portfolio. Scope and plans: `../../docs/01_reviews_app_prd_v2.md`. Task list with progress at the top: `../../docs/02_reviews_mvp_tasks.md`. Roadmap, plan ladder and Fera comparison: `../../docs/03_reviews_roadmap.md`. Which plan unlocks which feature: `lib/features.ts` (one table). Known traps: `../../docs/GOTCHAS.md`.
 
 ## Current state (MVP code complete, 14 Oct 2026; not yet run against a live Wix store)
 

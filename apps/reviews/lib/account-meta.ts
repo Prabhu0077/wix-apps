@@ -7,7 +7,7 @@ import { eq, sql } from "drizzle-orm";
 
 import { db, accounts } from "@/lib/db";
 
-export type MetaKey = "lastWebhookAt" | "widgetSeenAt";
+export type MetaKey = "lastWebhookAt" | "widgetSeenAt" | "lastDigestAt" | "testEmailAt" | "backfillAt";
 
 export function readMetaTime(settings: unknown, key: MetaKey): Date | null {
   const v = (settings as Record<string, unknown> | null | undefined)?.[key];

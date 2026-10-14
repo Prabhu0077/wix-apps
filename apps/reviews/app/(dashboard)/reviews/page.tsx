@@ -6,6 +6,7 @@ import { ImportPanel } from "@/components/dashboard/ImportPanel";
 import { Stars } from "@/components/ui/Stars";
 import { api, ApiError, useInstance } from "@/lib/dashboard-client";
 import { fullDate, reviewDateLabel } from "@/lib/dates";
+import { SPAM_FLAG_LABEL } from "@/lib/spam";
 
 type Media = { kind: "PHOTO" | "VIDEO"; publicUrl: string; thumbUrl: string | null };
 type Status = "PENDING" | "APPROVED" | "REJECTED" | "HIDDEN";
@@ -19,6 +20,8 @@ type Review = {
   verified?: boolean;
   source?: "REQUEST" | "IMPORT" | "MANUAL";
   incentivized?: boolean;
+  moderationFlags?: string[];
+  helpfulCount?: number;
   reply: string | null;
   createdAt: string;
   media: Media[];
@@ -75,7 +78,18 @@ function ReviewItem({
         </time>
       </div>
       <p className="rsmall">{review.customerEmail}</p>
+      {(review.moderationFlags?.length ?? 0) > 0 && (
+        <p className="rflags">
+          <span className="badge badge-rejected">Check this</span>{" "}
+          {review.moderationFlags!.map((f) => SPAM_FLAG_LABEL[f as keyof typeof SPAM_FLAG_LABEL] ?? f).join(" · ")}
+        </p>
+      )}
       <p className="rbody">{review.body}</p>
+      {(review.helpfulCount ?? 0) > 0 && (
+        <p className="rsmall">
+          {review.helpfulCount} shopper{review.helpfulCount === 1 ? "" : "s"} found this helpful
+        </p>
+      )}
 
       {review.media.length > 0 && (
         <div className="rmedia">

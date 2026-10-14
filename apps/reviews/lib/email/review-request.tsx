@@ -13,13 +13,25 @@ type Props = {
   unsubscribeUrl: string;
   /** Sender's postal address (CAN-SPAM). Null if the merchant hasn't set one in Wix Business Info. */
   storeAddress?: string | null;
+  /** "reminder" = the one follow-up (Starter+), sent once if no review after 7 days. */
+  kind?: "request" | "reminder";
+  /** Thank-you coupon percent (Starter+), promised for ANY honest review. Null = no coupon. */
+  couponPercent?: number | null;
 };
 
 function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-export function renderReviewRequestEmail({ storeName, productNames, reviewUrl, unsubscribeUrl, storeAddress }: Props) {
+export function renderReviewRequestEmail({
+  storeName,
+  productNames,
+  reviewUrl,
+  unsubscribeUrl,
+  storeAddress,
+  kind = "request",
+  couponPercent = null,
+}: Props) {
   const items =
     productNames.length === 1
       ? productNames[0]
@@ -27,13 +39,27 @@ export function renderReviewRequestEmail({ storeName, productNames, reviewUrl, u
         ? `${productNames.slice(0, -1).join(", ")} and ${productNames[productNames.length - 1]}`
         : "your recent order";
 
-  const subject = `How was your order from ${storeName}?`;
+  const reminder = kind === "reminder";
+  const subject = reminder
+    ? `A quick reminder from ${storeName}`
+    : `How was your order from ${storeName}?`;
+  const heading = reminder ? "Still happy to hear from you" : "How was your order?";
+  const intro = reminder
+    ? `A short reminder: we'd still value your honest review of`
+    : `You recently received`;
+  // Same wording for every rating: the coupon is for reviewing, not for praise.
+  const coupon = couponPercent
+    ? `As a thank-you, you'll get a ${couponPercent}% discount code for your next order after you send any honest review, good or bad.`
+    : null;
 
   const text = [
     `Hi,`,
     ``,
-    `You recently received ${items} from ${storeName}. Would you share an honest review? It helps other shoppers decide.`,
+    reminder
+      ? `${intro} ${items} from ${storeName}. It helps other shoppers decide.`
+      : `${intro} ${items} from ${storeName}. Would you share an honest review? It helps other shoppers decide.`,
     ``,
+    ...(coupon ? [coupon, ``] : []),
     `Write a review: ${reviewUrl}`,
     ``,
     `This link works for ${REVIEW_LINK_DAYS} days. You got this email because you ordered from ${storeName}.`,
@@ -49,10 +75,17 @@ export function renderReviewRequestEmail({ storeName, productNames, reviewUrl, u
     <tr><td align="center">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border:1px solid #e1e5ea;border-radius:12px">
         <tr><td style="padding:28px 28px 8px;font-size:14px;color:#5f6b78">${esc(storeName)}</td></tr>
-        <tr><td style="padding:0 28px;font-size:22px;line-height:1.3;font-weight:650">How was your order?</td></tr>
+        <tr><td style="padding:0 28px;font-size:22px;line-height:1.3;font-weight:650">${esc(heading)}</td></tr>
         <tr><td style="padding:14px 28px 0;font-size:16px;line-height:1.6;color:#34414e">
-          You recently received <strong>${esc(items)}</strong>. Would you share an honest review? It helps other shoppers decide, and it takes about a minute.
-        </td></tr>
+          ${esc(intro)} <strong>${esc(items)}</strong>${
+            reminder ? "." : ". Would you share an honest review?"
+          } It helps other shoppers decide, and it takes about a minute.
+        </td></tr>${
+          coupon
+            ? `
+        <tr><td style="padding:14px 28px 0;font-size:15px;line-height:1.6;color:#34414e">${esc(coupon)}</td></tr>`
+            : ""
+        }
         <tr><td style="padding:24px 28px 8px">
           <a href="${esc(reviewUrl)}" style="display:inline-block;background:#1f2933;color:#ffffff;text-decoration:none;font-weight:600;font-size:16px;padding:13px 24px;border-radius:8px">Write a review</a>
         </td></tr>

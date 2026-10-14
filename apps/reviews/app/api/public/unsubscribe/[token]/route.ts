@@ -27,8 +27,13 @@ async function load(token: string) {
   return { request, account };
 }
 
+// The merchant's test email links here; show the page, save nothing.
+const DEMO_TOKEN = "demo";
+
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
-  const found = await load((await params).token);
+  const token = (await params).token;
+  if (token === DEMO_TOKEN) return NextResponse.json({ storeName: "Your store", unsubscribed: false, demo: true });
+  const found = await load(token);
   if (!found) return NextResponse.json({ error: "not_found" }, { status: 404 });
   return NextResponse.json({
     storeName: storeNameFrom(found.account.settings),
@@ -37,7 +42,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
-  const found = await load((await params).token);
+  const token = (await params).token;
+  if (token === DEMO_TOKEN) return NextResponse.json({ ok: true, storeName: "Your store", demo: true });
+  const found = await load(token);
   if (!found) return NextResponse.json({ error: "not_found" }, { status: 404 });
 
   const oneClick = (req.headers.get("content-type") ?? "").includes("application/x-www-form-urlencoded");

@@ -9,7 +9,10 @@ import { db, accounts, reviewRequests, reviews, reviewMedia } from "@/lib/db";
 import { getProductSummaries, type ProductSummary } from "@/lib/wix/catalog";
 import { getWixClient } from "@/lib/wix/service";
 import { env } from "@/lib/env";
+import { createThankYouCoupon } from "@/lib/coupons";
+import { hasFeature } from "@/lib/features";
 import { MAX_PHOTOS_PER_REVIEW, r2Enabled } from "@/lib/r2";
+import { spamFlags } from "@/lib/spam";
 import { REVIEW_LINK_DAYS } from "@/lib/product";
 import { readSettings, storeNameFrom } from "@/lib/settings";
 
@@ -19,12 +22,26 @@ function isExpired(createdAt: Date): boolean {
 
 export const runtime = "nodejs";
 
+// "demo" opens a sample form (used by the merchant's "Send me a test email").
+// Nothing is read or saved for it.
+const DEMO_TOKEN = "demo";
+
 // GET — fetch the prompt context (product info, customer email) for the form.
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ token: string }> },
 ) {
   const { token } = await params;
+
+  if (token === DEMO_TOKEN) {
+    return NextResponse.json({
+      storeName: "Your store",
+      products: [{ id: "demo-1", name: "Sample product" }],
+      photosEnabled: false,
+      couponPercent: null,
+      demo: true,
+    });
+  }
 
   const request = await db.query.reviewRequests.findFirst({
     where: eq(reviewRequests.publicToken, token),
@@ -47,6 +64,10 @@ export async function GET(
     where: eq(accounts.id, request.accountId),
   });
   const storeName = storeNameFrom(account?.settings);
+  const settings = readSettings(account?.settings);
+  // Told up front, for every rating alike (no review gating).
+  const couponPercent =
+    account && hasFeature(account.plan, "coupon") && settings.couponEnabled ? settings.couponPercent : null;
 
   // Product names and images from Wix (Catalog V1 or V3). The form still
   // works with a generic label if Wix can't be reached.
@@ -63,7 +84,7 @@ export async function GET(
   const products = productIds.map((id) => found.get(id) ?? { id, name: "Your recent purchase" });
 
   // The shopper's email is not returned: the page never needs it.
-  return NextResponse.json({ storeName, products, photosEnabled: r2Enabled() });
+  return NextResponse.json({ storeName, products, photosEnabled: r2Enabled(), couponPercent });
 }
 
 // One block per product the shopper chose to review. Products they skip are
@@ -90,6 +111,13 @@ export async function POST(
   { params }: { params: Promise<{ token: string }> },
 ) {
   const { token } = await params;
+
+  if (token === DEMO_TOKEN) {
+    // Validate like a real submit so the merchant sees real behaviour, save nothing.
+    const parsed = SubmitSchema.safeParse(await req.json().catch(() => null));
+    if (!parsed.success) return NextResponse.json({ error: "validation_failed" }, { status: 400 });
+    return NextResponse.json({ ok: true, saved: parsed.data.items.length, demo: true }, { status: 201 });
+  }
 
   const request = await db.query.reviewRequests.findFirst({
     where: eq(reviewRequests.publicToken, token),
@@ -141,13 +169,19 @@ export async function POST(
   let savedIds: string[] = [];
   try {
     const account = await db.query.accounts.findFirst({ where: eq(accounts.id, request.accountId) });
-    const autoPublish = readSettings(account?.settings).autoPublish;
+    const settings = readSettings(account?.settings);
+    const couponOffered = !!account && hasFeature(account.plan, "coupon") && settings.couponEnabled;
     const now = new Date();
 
     const inserted = await db
       .insert(reviews)
       .values(
-        body.items.map((item) => ({
+        body.items.map((item) => {
+          // Content checks only (links, phone numbers, abuse...), never the
+          // rating. A flagged review waits for the merchant even with auto-publish.
+          const flags = spamFlags(item.body, body.customerName);
+          const publish = settings.autoPublish && flags.length === 0;
+          return {
           accountId: request.accountId,
           productId: item.productId,
           wixOrderId: request.wixOrderId,
@@ -156,13 +190,16 @@ export async function POST(
           rating: item.rating,
           body: item.body,
           // Auto-publish applies to every rating alike — never gate on rating.
-          status: autoPublish ? ("APPROVED" as const) : ("PENDING" as const),
-          publishedAt: autoPublish ? now : null,
-          moderationFlags: [],
+          status: publish ? ("APPROVED" as const) : ("PENDING" as const),
+          publishedAt: publish ? now : null,
+          moderationFlags: flags,
           // Came through a token tied to a real Wix order.
           verified: true,
+          // A thank-you coupon was promised for reviewing: shown as "Incentive".
+          incentivized: couponOffered,
           source: "REQUEST" as const,
-        })),
+          };
+        }),
       )
       .returning({ id: reviews.id, productId: reviews.productId });
     savedIds = inserted.map((r) => r.id);
@@ -181,7 +218,20 @@ export async function POST(
       if (media.length > 0) await db.insert(reviewMedia).values(media);
     }
 
-    return NextResponse.json({ ok: true, saved: inserted.length }, { status: 201 });
+    // The reviews are saved. A coupon failure must not undo them.
+    let couponCode: string | null = null;
+    if (couponOffered && account) {
+      try {
+        const client = await getWixClient(account.wixInstanceId);
+        couponCode = await createThankYouCoupon(client, settings.couponPercent);
+        await db.update(reviewRequests).set({ couponCode }).where(eq(reviewRequests.id, request.id));
+      } catch (err) {
+        console.error(`[review/token] coupon failed for request ${request.id}`, err);
+        couponCode = null;
+      }
+    }
+
+    return NextResponse.json({ ok: true, saved: inserted.length, couponCode }, { status: 201 });
   } catch (err) {
     console.error(`[review/token] save failed for request ${request.id}`, err);
     // Undo partial work so the shopper can simply try again.

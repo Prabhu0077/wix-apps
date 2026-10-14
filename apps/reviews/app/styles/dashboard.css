@@ -902,3 +902,11 @@ a:hover {
     transition: none !important;
   }
 }
+.toggle:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.rflags {
+  font-size: 13px;
+  color: var(--text-2, #5f6b78);
+}

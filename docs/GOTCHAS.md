@@ -10,6 +10,18 @@
 
 ---
 
+## 2026-10-14 — New Wix permissions and site plugins for the Free/Starter extras
+
+Code alone is not enough: "Ask recent customers" needs **Read Orders** (`POST /ecom/v1/orders/search`), the Starter thank-you coupon needs **Manage Coupons** (`POST /stores/v2/coupons`), and the owner digest / test email use `accounts.ownerEmail` (install falls back to `pending@example.com`, which we never email). Without the permission, backfill returns "couldn't reach your Wix orders" and the coupon is skipped (review still saved, error logged). The badge, carousel and all-reviews page are served at `/widget/badge`, `/widget/carousel`, `/widget/all` but must be **registered as site plugins/widgets in the Wix app dashboard** before merchants can add them. The digest's dashboard link (`manage.wix.com/dashboard/<siteId>/app/<appId>`) is unverified until a live install. *(Hit by: Claude, 2026-10-14.)*
+
+---
+
+## 2026-10-14 — Widget CSS `display:flex` beats the `hidden` attribute
+
+`.w-filter{display:flex}` made the "Show all reviews" row ignore `hidden`, so it never disappeared. The browser test caught it. Fix: `.w [hidden]{display:none !important}` in `lib/widget-html.ts`. Any new element in the widget that is toggled with `hidden` is covered by that rule. *(Hit by: Claude, 2026-10-14.)*
+
+---
+
 ## 2026-10-13 — `pnpm install` silently skips devDependencies on the founder's PC
 
 `NODE_ENV=production` is set system-wide on the founder's Windows PC, so `pnpm install` prints "devDependencies: skipped" and `tsc`, `drizzle-kit` and `eslint` are missing — type-check then fails with a confusing npx "tsc@2.0.4" prompt. **Fix:** `set NODE_ENV=development&& set CI=true&& pnpm install --prod=false` (CI=true avoids pnpm's interactive "reinstall node_modules?" prompt). Also: `pnpm-lock.yaml` had drifted from `package.json` (tailwind entries), so `--frozen-lockfile` failed; the refreshed lockfile was committed. *(Hit by: Claude, 2026-10-13.)*

@@ -7,6 +7,7 @@ import { eq } from "drizzle-orm";
 
 import { db, accounts } from "@/lib/db";
 import { readSettings, SettingsSchema, storeNameFrom } from "@/lib/settings";
+import { currentPlan } from "@/lib/usage";
 import { resolveInstanceId } from "@/lib/wix/instance";
 
 export const runtime = "nodejs";
@@ -18,7 +19,10 @@ export async function GET(req: NextRequest) {
   const account = await db.query.accounts.findFirst({ where: eq(accounts.wixInstanceId, instanceId) });
   if (!account) return NextResponse.json({ error: "account_not_found" }, { status: 404 });
 
-  return NextResponse.json({ settings: readSettings(account.settings), storeName: storeNameFrom(account.settings) });
+  // The plan decides which paid toggles are unlocked on the page. The
+  // features themselves check the plan again when they run.
+  const plan = await currentPlan(account).catch(() => account.plan);
+  return NextResponse.json({ settings: readSettings(account.settings), storeName: storeNameFrom(account.settings), plan });
 }
 
 export async function POST(req: NextRequest) {

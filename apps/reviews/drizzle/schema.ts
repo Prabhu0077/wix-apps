@@ -65,6 +65,8 @@ export const reviewRequests = reviewsSchema.table(
     // Why a request was not scheduled. Only "monthly_limit" for now.
     skipReason:    text("skip_reason"),
     publicToken:   text("public_token").unique().notNull().$defaultFn(() => createId()),
+    reminderSentAt: timestamp("reminder_sent_at"),               // Starter+: one reminder after 7 days
+    couponCode:    text("coupon_code"),                          // Starter+: thank-you code given on submit
     createdAt:     timestamp("created_at").defaultNow().notNull(),
   },
   (t) => ({
@@ -95,6 +97,7 @@ export const reviews = reviewsSchema.table(
     // The reviewer got something for writing it (coupon, gift). Shown on the
     // review, as the FTC rule and UK DMCC Act require (PRD R12, T10.2).
     incentivized:    boolean("incentivized").default(false).notNull(),
+    helpfulCount:    integer("helpful_count").default(0).notNull(),
     // Imports only: a stable key for the source row (Wix review ID, or a hash
     // of the CSV row), so importing the same file twice adds nothing.
     sourceRef:       text("source_ref"),
@@ -122,6 +125,21 @@ export const emailSuppressions = reviewsSchema.table(
   },
   (t) => ({
     onePerEmail: uniqueIndex("es_account_email_uq").on(t.accountId, t.emailHash),
+  }),
+);
+
+// "Was this helpful?" votes. One per voter per review; the voter is a hash
+// of IP + browser, never stored in clear.
+export const reviewVotes = reviewsSchema.table(
+  "review_votes",
+  {
+    id:        text("id").primaryKey().$defaultFn(() => createId()),
+    reviewId:  text("review_id").references(() => reviews.id, { onDelete: "cascade" }).notNull(),
+    voterHash: text("voter_hash").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => ({
+    oneVote: uniqueIndex("rv_review_voter_uq").on(t.reviewId, t.voterHash),
   }),
 );
 

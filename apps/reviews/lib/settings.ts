@@ -16,6 +16,13 @@ export const SettingsSchema = z.object({
   showPhotosFirst: z.boolean(),
   widgetTheme: z.enum(["light", "dark"]),
   starColor: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+  // Email the store owner a daily summary of new reviews.
+  notifyNewReviews: z.boolean(),
+  // Starter and up: one reminder 7 days after the request if no review yet.
+  reminderEnabled: z.boolean(),
+  // Starter and up: a one-time discount code for any honest review.
+  couponEnabled: z.boolean(),
+  couponPercent: z.number().int().min(5).max(50),
 });
 
 export type AppSettings = z.infer<typeof SettingsSchema>;
@@ -27,6 +34,10 @@ export const DEFAULT_SETTINGS: AppSettings = {
   showPhotosFirst: false,
   widgetTheme: "light",
   starColor: DEFAULT_STAR_COLOR,
+  notifyNewReviews: true,
+  reminderEnabled: true,
+  couponEnabled: false,
+  couponPercent: 10,
 };
 
 /** Merge stored jsonb with defaults, dropping anything invalid or retired. */

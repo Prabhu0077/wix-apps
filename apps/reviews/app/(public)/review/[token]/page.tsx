@@ -15,7 +15,13 @@ import { useParams } from "next/navigation";
 import { REVIEW_LINK_DAYS } from "@/lib/product";
 
 type Product = { id: string; name: string; imageUrl?: string };
-type Context = { storeName: string | null; products: Product[]; photosEnabled?: boolean };
+type Context = {
+  storeName: string | null;
+  products: Product[];
+  photosEnabled?: boolean;
+  couponPercent?: number | null;
+  demo?: boolean;
+};
 type Photo = { key: string; preview: string };
 type Draft = { rating: number; body: string; photos: Photo[] };
 
@@ -181,6 +187,8 @@ export default function ReviewFormPage() {
   const [name, setName] = useState("");
   const [sending, setSending] = useState(false);
   const [savedCount, setSavedCount] = useState<number | null>(null);
+  const [coupon, setCoupon] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [problems, setProblems] = useState<Record<string, string>>({});
 
@@ -241,7 +249,8 @@ export default function ReviewFormPage() {
     }).catch(() => null);
 
     if (res?.ok) {
-      const data = (await res.json().catch(() => ({}))) as { saved?: number };
+      const data = (await res.json().catch(() => ({}))) as { saved?: number; couponCode?: string | null };
+      setCoupon(data.couponCode ?? null);
       setSavedCount(data.saved ?? started.length);
       return;
     }
@@ -276,9 +285,37 @@ export default function ReviewFormPage() {
               {savedCount === 1 ? "Your review has" : `Your ${savedCount} reviews have`} been sent to {store}.
             </h2>
             <p className="rf-hint">Reviews appear on the product page once the store publishes them.</p>
+            {coupon && (
+              <div className="rf-coupon">
+                <p>Your thank-you code for {ctx?.couponPercent ? `${ctx.couponPercent}% off` : "a discount on"} your next order:</p>
+                <p className="rf-code">{coupon}</p>
+                <button
+                  type="button"
+                  className="rf-copy"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(coupon).then(() => setCopied(true), () => undefined);
+                  }}
+                >
+                  {copied ? "Copied" : "Copy code"}
+                </button>
+                <p className="rf-hint">Use it once at checkout within 90 days. Keep this page or note the code.</p>
+              </div>
+            )}
+            {ctx?.demo && (
+              <p className="rf-hint">This was a sample form, so nothing was saved.</p>
+            )}
           </div>
         ) : (
           <form onSubmit={submit} noValidate className="rf-form">
+            {ctx.demo && (
+              <p className="rf-demo">Sample form: this is what your customers see. Nothing you send here is saved.</p>
+            )}
+            {ctx.couponPercent ? (
+              <p className="rf-offer">
+                As a thank-you, you&apos;ll get a {ctx.couponPercent}% discount code for your next order after you send any
+                honest review, good or bad.
+              </p>
+            ) : null}
             {!single && (
               <p className="rf-hint">Rate any product you&apos;d like to review. You can skip the others.</p>
             )}

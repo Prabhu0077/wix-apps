@@ -7,7 +7,7 @@
 // system font, and carries no app branding (Wix bans "powered by").
 
 import { fullDate, reviewDateLabel } from "@/lib/dates";
-import type { WidgetData, WidgetReview } from "@/lib/widget-data";
+import type { Display, Summary, WidgetData, WidgetReview } from "@/lib/widget-data";
 
 const STAR_PATH =
   "M10 1.6l2.47 5.3 5.8.68-4.29 3.96 1.13 5.73L10 14.4l-5.11 2.87 1.13-5.73L1.73 7.58l5.8-.68z";
@@ -41,7 +41,7 @@ function body(r: WidgetReview): string {
   return `<p class="w-body"><span class="w-short">${esc(short)}…</span><span class="w-full" hidden>${esc(r.body)}</span> <button type="button" class="w-more" aria-expanded="false">Read more</button></p>`;
 }
 
-function item(r: WidgetReview, now: Date): string {
+function item(r: WidgetReview, now: Date, opts: { helpful?: boolean } = {}): string {
   const tags = [
     r.verified ? '<span class="w-tag">Verified buyer</span>' : "",
     r.imported ? '<span class="w-tag">Imported review</span>' : "",
@@ -55,21 +55,38 @@ function item(r: WidgetReview, now: Date): string {
   const reply = r.reply
     ? `<div class="w-reply"><p class="w-reply-label">Reply from the store</p><p>${esc(r.reply)}</p></div>`
     : "";
-  return `<li class="w-item" data-rating="${r.rating}" data-written="${Date.parse(r.writtenAt)}" data-photos="${r.media.length > 0 ? 1 : 0}">
-<div class="w-meta"><span class="w-name">${esc(r.customerName)}</span>${stars(r.rating, 14, true)}${tags}<time class="w-date" datetime="${esc(r.writtenAt)}" title="${esc(fullDate(r.writtenAt))}">${esc(reviewDateLabel(r.writtenAt, now))}</time></div>
-${body(r)}${media}${reply}</li>`;
+  const product = r.productName ? `<p class="w-product">${esc(r.productName)}</p>` : "";
+  const helpful =
+    opts.helpful !== false
+      ? `<div class="w-foot"><button type="button" class="w-helpful" data-id="${esc(r.id)}" aria-pressed="false">Helpful<span class="w-hn">${r.helpful > 0 ? ` (${r.helpful})` : ""}</span></button></div>`
+      : "";
+  return `<li class="w-item" data-rating="${r.rating}" data-written="${Date.parse(r.writtenAt)}" data-photos="${r.media.length > 0 ? 1 : 0}" data-helpful="${r.helpful}">
+${product}<div class="w-meta"><span class="w-name">${esc(r.customerName)}</span>${stars(r.rating, 14, true)}${tags}<time class="w-date" datetime="${esc(r.writtenAt)}" title="${esc(fullDate(r.writtenAt))}">${esc(reviewDateLabel(r.writtenAt, now))}</time></div>
+${body(r)}${media}${reply}${helpful}</li>`;
 }
 
-// Sorting and "Read more" (no framework). Photos-first only applies to "Newest".
-const SCRIPT = `(function(){var l=document.querySelector(".w-list"),s=document.querySelector(".w-sort"),pf=document.querySelector(".w").dataset.photosFirst==="1";
+// Sorting, star filter, "Read more" and "Helpful" votes (no framework).
+// Photos-first only applies to "Newest". Votes go to our API; the browser
+// remembers its own votes so the button stays pressed.
+const SCRIPT = `(function(){var w=document.querySelector(".w");if(!w)return;var l=w.querySelector(".w-list"),s=w.querySelector(".w-sort"),pf=w.dataset.photosFirst==="1",inst=w.dataset.instance,only=0;
 function k(e,a){return +e.dataset[a]}
 function sort(){if(!l)return;var v=s?s.value:"newest",it=[].slice.call(l.children);it.sort(function(a,b){
 if(v==="highest")return k(b,"rating")-k(a,"rating")||k(b,"written")-k(a,"written");
 if(v==="lowest")return k(a,"rating")-k(b,"rating")||k(b,"written")-k(a,"written");
+if(v==="helpful")return k(b,"helpful")-k(a,"helpful")||k(b,"written")-k(a,"written");
 return (pf?k(b,"photos")-k(a,"photos"):0)||k(b,"written")-k(a,"written")});it.forEach(function(e){l.appendChild(e)})}
+function filter(n){only=only===n?0:n;var shown=0;[].forEach.call(l.children,function(e){var ok=!only||k(e,"rating")===only;e.hidden=!ok;if(ok)shown++});
+[].forEach.call(w.querySelectorAll(".w-bar"),function(b){b.setAttribute("aria-pressed",String(+b.dataset.star===only))});
+var f=w.querySelector(".w-filter");if(f){f.hidden=!only;f.querySelector("span").textContent=only?"Showing "+shown+" "+only+"-star review"+(shown===1?"":"s"):""}}
 if(s)s.addEventListener("change",sort);sort();
-document.addEventListener("click",function(e){var b=e.target.closest&&e.target.closest(".w-more");if(!b)return;var p=b.parentNode,o=b.getAttribute("aria-expanded")==="true";
-p.querySelector(".w-short").hidden=!o;p.querySelector(".w-full").hidden=o;b.setAttribute("aria-expanded",o?"false":"true");b.textContent=o?"Read more":"Show less"})})();`;
+var voted={};try{voted=JSON.parse(localStorage.getItem("w-voted")||"{}")}catch(e){}
+[].forEach.call(w.querySelectorAll(".w-helpful"),function(b){if(voted[b.dataset.id])b.setAttribute("aria-pressed","true")});
+w.addEventListener("click",function(e){var t=e.target.closest?e.target:null;if(!t)return;
+var bar=t.closest(".w-bar");if(bar&&l){filter(+bar.dataset.star);return}
+if(t.closest(".w-clear")){filter(only);return}
+var b=t.closest(".w-more");if(b){var p=b.parentNode,o=b.getAttribute("aria-expanded")==="true";p.querySelector(".w-short").hidden=!o;p.querySelector(".w-full").hidden=o;b.setAttribute("aria-expanded",o?"false":"true");b.textContent=o?"Read more":"Show less";return}
+var h=t.closest(".w-helpful");if(h&&h.getAttribute("aria-pressed")!=="true"&&inst){h.setAttribute("aria-pressed","true");var li=h.closest(".w-item"),n=k(li,"helpful")+1;li.dataset.helpful=n;h.querySelector(".w-hn").textContent=" ("+n+")";voted[h.dataset.id]=1;try{localStorage.setItem("w-voted",JSON.stringify(voted))}catch(e){}
+fetch("/api/widget/helpful",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({instanceId:inst,reviewId:h.dataset.id})}).catch(function(){})}})})();`;
 
 export const WIDGET_CSS = `.w {
   --text: #1f2933;
@@ -160,12 +177,14 @@ export const WIDGET_CSS = `.w {
   color: var(--text-2);
 }
 .w-track {
+  display: block;
   height: 6px;
   border-radius: 3px;
   background: var(--track);
   overflow: hidden;
 }
 .w-fill {
+  display: block;
   height: 100%;
   background: var(--star);
 }
@@ -260,6 +279,63 @@ export const WIDGET_CSS = `.w {
   color: var(--text-2);
 }
 
+.w-bar {
+  background: none;
+  border: 0;
+  padding: 2px 0;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text-2);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+.w-bar[aria-pressed="true"] {
+  color: var(--text);
+  font-weight: 600;
+}
+.w-filter {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 14px;
+  color: var(--text-2);
+  padding-top: 12px;
+}
+.w [hidden] {
+  display: none !important;
+}
+.w-clear {
+  background: none;
+  border: 0;
+  padding: 0;
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 14px;
+  color: inherit;
+}
+.w-foot {
+  display: flex;
+}
+.w-helpful {
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 13px;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.w-helpful[aria-pressed="true"] {
+  color: var(--text);
+  border-color: currentColor;
+}
+.w-product {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
 @media (max-width: 520px) {
   .w-head {
     grid-template-columns: 1fr;
@@ -268,13 +344,13 @@ export const WIDGET_CSS = `.w {
 }`;
 
 /** Full HTML document for the iframe. `null` data renders an empty page (unknown store). */
-export function renderWidgetHtml(data: WidgetData | null, now: Date = new Date()): string {
+export function renderWidgetHtml(data: WidgetData | null, now: Date = new Date(), instanceId = ""): string {
   const head = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Customer reviews</title><style>body{margin:0;padding:0 16px;background:transparent}${WIDGET_CSS}</style></head><body>`;
   if (!data) return `${head}</body></html>`;
 
   const d = data.display;
   const starColor = d && /^#[0-9a-fA-F]{6}$/.test(d.starColor) ? d.starColor : "#F5A623";
-  const open = `<section class="w" style="--star:${starColor}" data-theme="${d?.theme === "dark" ? "dark" : "light"}" data-photos-first="${d?.photosFirst ? 1 : 0}" aria-label="Customer reviews">`;
+  const open = `<section class="w" style="--star:${starColor}" data-theme="${d?.theme === "dark" ? "dark" : "light"}" data-photos-first="${d?.photosFirst ? 1 : 0}" data-instance="${esc(instanceId)}" aria-label="Customer reviews">`;
   const { total, average, distribution } = data.summary;
 
   if (total === 0) {
@@ -284,16 +360,96 @@ export function renderWidgetHtml(data: WidgetData | null, now: Date = new Date()
   const bars = [5, 4, 3, 2, 1]
     .map((s) => {
       const n = distribution[s] ?? 0;
-      return `<div class="w-bar"><span>${s} star${s === 1 ? "" : "s"}</span><div class="w-track" aria-hidden="true"><div class="w-fill" style="width:${((n / total) * 100).toFixed(1)}%"></div></div><span class="w-n">${n}</span></div>`;
+      return `<button type="button" class="w-bar" data-star="${s}" aria-pressed="false" aria-label="Show ${s}-star reviews (${n})"><span>${s} star${s === 1 ? "" : "s"}</span><span class="w-track" aria-hidden="true"><span class="w-fill" style="width:${((n / total) * 100).toFixed(1)}%"></span></span><span class="w-n">${n}</span></button>`;
     })
     .join("");
 
   const tools =
     total > 1
-      ? `<div class="w-tools"><label><span class="w-tag" style="margin-right:8px">Sort by</span><select class="w-sort"><option value="newest">Newest</option><option value="highest">Highest rating</option><option value="lowest">Lowest rating</option></select></label></div>`
+      ? `<div class="w-tools"><label><span class="w-tag" style="margin-right:8px">Sort by</span><select class="w-sort"><option value="newest">Newest</option><option value="highest">Highest rating</option><option value="lowest">Lowest rating</option><option value="helpful">Most helpful</option></select></label></div>`
       : "";
 
-  return `${head}${open}<div class="w-head"><div><h2 class="w-title">Customer reviews</h2><div class="w-avg">${average.toFixed(1)}</div>${stars(average, 18, true)}<p class="w-count">Based on ${total} review${total === 1 ? "" : "s"}</p></div><div class="w-bars">${bars}</div></div>${tools}<ul class="w-list">${data.reviews
+  return `${head}${open}<div class="w-head"><div><h2 class="w-title">Customer reviews</h2><div class="w-avg">${average.toFixed(1)}</div>${stars(average, 18, true)}<p class="w-count">Based on ${total} review${total === 1 ? "" : "s"}</p></div><div class="w-bars">${bars}</div></div><div class="w-filter" hidden><span></span><button type="button" class="w-clear">Show all reviews</button></div>${tools}<ul class="w-list">${data.reviews
     .map((r) => item(r, now))
     .join("")}</ul></section><script>${SCRIPT}</script></body></html>`;
+}
+
+
+// ---------- Small storefront pieces ----------
+
+function themeAttrs(display: Display | null): { starColor: string; theme: "light" | "dark" } {
+  const starColor = display && /^#[0-9a-fA-F]{6}$/.test(display.starColor) ? display.starColor : "#F5A623";
+  return { starColor, theme: display?.theme === "dark" ? "dark" : "light" };
+}
+
+function doc(title: string, css: string, bodyHtml: string, script = ""): string {
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${esc(title)}</title><style>body{margin:0;padding:0;background:transparent}${css}</style></head><body>${bodyHtml}${script ? `<script>${script}</script>` : ""}</body></html>`;
+}
+
+/**
+ * Star rating badge for the product title area (free): "4.6 ★★★★★ (28 reviews)".
+ * Renders nothing when the product has no published reviews.
+ */
+export function renderBadgeHtml(summary: Summary | null, display: Display | null): string {
+  if (!summary || summary.total === 0) return doc("Rating", WIDGET_CSS, "");
+  const { starColor, theme } = themeAttrs(display);
+  const label = `${summary.total} review${summary.total === 1 ? "" : "s"}`;
+  return doc(
+    "Rating",
+    `${WIDGET_CSS}.w-badge{display:flex;align-items:center;gap:6px;padding:2px 0;font-size:14px}.w-badge b{font-weight:650}`,
+    `<div class="w w-badge" style="--star:${starColor};padding:0" data-theme="${theme}">` +
+      `<b>${summary.average.toFixed(1)}</b>${stars(summary.average, 16, true)}<span class="w-count" style="margin:0">(${label})</span></div>`,
+  );
+}
+
+/**
+ * Store-wide reviews (Starter): a horizontal carousel for the home page, or a
+ * full "all reviews" page with paging. Every rating is shown, newest first —
+ * a highlights-only carousel would be selective display (PRD R12).
+ */
+export function renderStoreReviewsHtml(opts: {
+  kind: "carousel" | "all";
+  reviews: WidgetReview[];
+  summary: Summary;
+  display: Display | null;
+  instanceId: string;
+  page?: number;
+  hasMore?: boolean;
+  now?: Date;
+}): string {
+  const { starColor, theme } = themeAttrs(opts.display);
+  const now = opts.now ?? new Date();
+  const s = opts.summary;
+  if (s.total === 0) return doc("Customer reviews", WIDGET_CSS, "");
+  const head = `<div class="w-sum"><span class="w-avg" style="font-size:28px">${s.average.toFixed(1)}</span>${stars(s.average, 18, true)}<span class="w-count" style="margin:0">Based on ${s.total} review${s.total === 1 ? "" : "s"}</span></div>`;
+
+  if (opts.kind === "carousel") {
+    const cards = opts.reviews
+      .map(
+        (r) =>
+          `<li class="w-card">${r.productName ? `<p class="w-product">${esc(r.productName)}</p>` : ""}${stars(r.rating, 14, true)}<p class="w-card-body">${esc(r.body.length > 220 ? `${r.body.slice(0, 220).trimEnd()}…` : r.body)}</p><p class="w-tag">${esc(r.customerName)}${r.verified ? " · Verified buyer" : ""}${r.incentivized ? " · Received an incentive" : ""}</p></li>`,
+      )
+      .join("");
+    const css = `${WIDGET_CSS}.w-sum{display:flex;align-items:center;gap:10px;padding:4px 0 14px}.w-cards{list-style:none;margin:0;padding:0 0 8px;display:flex;gap:14px;overflow-x:auto;scroll-snap-type:x mandatory}.w-card{flex:0 0 280px;scroll-snap-align:start;border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:grid;gap:8px;align-content:start}.w-card-body{font-size:14px;margin:0}`;
+    return doc(
+      "Customer reviews",
+      css,
+      `<section class="w" style="--star:${starColor};max-width:none;padding:8px 16px" data-theme="${theme}" aria-label="Customer reviews"><h2 class="w-title">What customers say</h2>${head}<ul class="w-cards">${cards}</ul></section>`,
+    );
+  }
+
+  const page = opts.page ?? 0;
+  const nav =
+    page > 0 || opts.hasMore
+      ? `<nav class="w-pager" aria-label="Pages">${page > 0 ? `<a href="?instanceId=${encodeURIComponent(opts.instanceId)}&page=${page - 1}">Newer reviews</a>` : "<span></span>"}${opts.hasMore ? `<a href="?instanceId=${encodeURIComponent(opts.instanceId)}&page=${page + 1}">Older reviews</a>` : ""}</nav>`
+      : "";
+  const css = `${WIDGET_CSS}.w-sum{display:flex;align-items:center;gap:10px;padding:4px 0 10px}.w-pager{display:flex;justify-content:space-between;padding:16px 0;font-size:14px}.w-pager a{color:inherit}`;
+  return doc(
+    "Customer reviews",
+    css,
+    `<section class="w" style="--star:${starColor};padding:8px 16px 28px" data-theme="${theme}" data-instance="${esc(opts.instanceId)}" aria-label="All customer reviews"><h2 class="w-title">Customer reviews</h2>${head}<ul class="w-list">${opts.reviews
+      .map((r) => item(r, now))
+      .join("")}</ul>${nav}</section>`,
+    SCRIPT,
+  );
 }

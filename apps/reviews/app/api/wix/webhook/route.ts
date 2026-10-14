@@ -5,23 +5,14 @@ import { NextRequest, NextResponse, after } from "next/server";
 import { and, eq } from "drizzle-orm";
 
 import { db, accounts, reviewRequests } from "@/lib/db";
+import { alreadyRequested, scheduleForOrder, type OrderLike } from "@/lib/schedule";
 import { touchMeta } from "@/lib/account-meta";
 import { readSettings } from "@/lib/settings";
-import { isSuppressed } from "@/lib/suppression";
-import { currentPlan, requestUsage } from "@/lib/usage";
+import { currentPlan } from "@/lib/usage";
 import { verifyWixWebhook, type WixEvent } from "@/lib/wix/webhooks";
 import { getWixClient } from "@/lib/wix/service";
 
 export const runtime = "nodejs";
-
-type OrderLike = {
-  id?: string;
-  fulfillmentStatus?: string;
-  buyerInfo?: { email?: string };
-  billingInfo?: { contactDetails?: { email?: string } };
-  shippingInfo?: { deliveries?: { destination?: { contactDetails?: { email?: string } } }[] };
-  lineItems?: { productId?: string; catalogReference?: { catalogItemId?: string } }[];
-};
 
 export async function POST(req: NextRequest) {
   const webhook = await verifyWixWebhook(await req.text());
@@ -110,10 +101,7 @@ async function handleOrderFulfilled(wixInstanceId: string, event: WixEvent) {
     if (account.uninstalledAt) return; // late event after uninstall
     await touchMeta(account, "lastWebhookAt", 60 * 60 * 1000); // for the health check
 
-    const existing = await db.query.reviewRequests.findFirst({
-      where: and(eq(reviewRequests.accountId, account.id), eq(reviewRequests.wixOrderId, orderId)),
-    });
-    if (existing) return; // Wix may deliver the same event more than once.
+    if (await alreadyRequested(account.id, orderId)) return; // Wix may deliver an event twice.
 
     // Prefer the order in the event; fetch it only if the event was trimmed.
     let order: OrderLike | undefined = body.order;
@@ -122,56 +110,15 @@ async function handleOrderFulfilled(wixInstanceId: string, event: WixEvent) {
       order = (await client.get<{ order: OrderLike }>(`https://www.wixapis.com/ecom/v1/orders/${orderId}`))?.order;
     }
 
-    const email =
-      order?.buyerInfo?.email ||
-      order?.billingInfo?.contactDetails?.email ||
-      order?.shippingInfo?.deliveries?.[0]?.destination?.contactDetails?.email;
-    const productIds = (order?.lineItems ?? [])
-      .map((li) => li.productId || li.catalogReference?.catalogItemId)
-      .filter((id): id is string => typeof id === "string" && id.length > 0);
-
-    if (!email || productIds.length === 0) {
-      console.warn(`[webhook] order ${orderId}: missing email or products, skipping`);
-      return;
-    }
-
-    // The shopper unsubscribed from this store's review emails: don't ask again,
-    // and don't count it against the merchant's monthly limit.
-    if (await isSuppressed(account.id, email)) {
-      console.log(`[webhook] order ${orderId}: customer unsubscribed, not scheduling`);
-      return;
-    }
-
-    // Monthly limit (PRD R1/R11). Over the limit we still store the order as
-    // SKIPPED, so the dashboard can say how many customers were not asked.
-    // Two webhooks landing at the same moment can each see "49 used"; the
-    // limit can be passed by one or two in that case. Acceptable for a soft
-    // monthly cap; it is never under-counted.
     const plan = await currentPlan(account);
-    const usage = await requestUsage(account.id, plan);
-    const overLimit = usage.used >= usage.limit;
-
     const delayDays = readSettings(account.settings).emailDelayDays;
-    const inserted = await db
-      .insert(reviewRequests)
-      .values({
-        accountId: account.id,
-        wixOrderId: orderId,
-        customerEmail: email,
-        productIds: [...new Set(productIds)],
-        status: overLimit ? "SKIPPED" : "SCHEDULED",
-        skipReason: overLimit ? "monthly_limit" : null,
-        scheduledFor: new Date(Date.now() + delayDays * 24 * 60 * 60 * 1000),
-      })
-      .onConflictDoNothing({ target: [reviewRequests.accountId, reviewRequests.wixOrderId] })
-      .returning({ id: reviewRequests.id });
-
-    if (inserted.length === 0) return; // a duplicate webhook got there first
-    console.log(
-      overLimit
-        ? `[webhook] order ${orderId}: ${plan} limit of ${usage.limit} reached, request skipped`
-        : `[webhook] scheduled review request for order ${orderId} in ${delayDays} days`,
+    const result = await scheduleForOrder(
+      account,
+      plan,
+      { ...(order ?? {}), id: orderId },
+      new Date(Date.now() + delayDays * 24 * 60 * 60 * 1000),
     );
+    console.log(`[webhook] order ${orderId}: ${result}${result === "scheduled" ? ` (in ${delayDays} days)` : ""}`);
   } catch (err) {
     console.error(`[webhook] failed to process order ${orderId}`, err);
   }

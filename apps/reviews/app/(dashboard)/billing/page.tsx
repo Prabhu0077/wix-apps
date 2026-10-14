@@ -23,7 +23,10 @@ const PLANS: { key: string; price: string; quota: string; features: Feature[] }[
     features: [
       { text: "Photo reviews", soon: true, live: "photos" },
       { text: "Verified buyer badge" },
-      { text: "Product page reviews" },
+      { text: "Product page reviews with star filter and \"helpful\" votes" },
+      { text: "Star rating badge" },
+      { text: "Ask customers from the last 30 days" },
+      { text: "Spam filter and daily new-review email" },
       { text: "Export all your reviews, any time" },
       { text: "Import from Wix Reviews or a CSV file" },
     ],
@@ -34,9 +37,9 @@ const PLANS: { key: string; price: string; quota: string; features: Feature[] }[
     quota: "300 review requests a month",
     features: [
       { text: "Everything in Free" },
-      { text: "Reminder email", soon: true },
-      { text: "Reviews carousel and all-reviews page", soon: true },
-      { text: "Thank-you coupons", soon: true },
+      { text: "Reminder email after 7 days" },
+      { text: "Reviews carousel and all-reviews page" },
+      { text: "Thank-you coupons" },
     ],
   },
   {
@@ -46,6 +49,7 @@ const PLANS: { key: string; price: string; quota: string; features: Feature[] }[
     features: [
       { text: "Everything in Starter" },
       { text: "Video reviews", soon: true },
+      { text: "AI reply drafts and review summary", soon: true },
       { text: "Star ratings in Google Shopping", soon: true },
     ],
   },
