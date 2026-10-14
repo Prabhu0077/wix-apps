@@ -42,6 +42,8 @@
   - Migration `0007` (review_votes, reviews.helpful_count, review_requests.reminder_sent_at / coupon_code) applied to Neon on 14 Oct (founder yes; checked before and after: new table, 3 columns, unique index; tables empty).
   - Founder needed: Read Orders + Manage Coupons permissions, register the three new site plugins (see GOTCHAS 14 Oct).
 
+- 2026-10-14, commit `0236a63`: app registered on the company Wix account (App ID `3e8c1bc4-f9fc-4f01-a8db-9284759534f3`, draft): 9 permissions, 3 webhooks, dashboard page. New Wix apps forced two code changes: client-credentials OAuth with account creation on the App Installed webhook (install route removed; T7.2 now done this way), and storefront custom elements (`elements/reviews-element.ts` → `public/elements/reviews.js`) that frame the `/widget*` pages. Still to do in the app dashboard: register the site plugins + widgets (needs a deploy so the script URL exists), plans, app name. Founder: new `WIX_APP_ID` / `WIX_APP_SECRET` / `WIX_WEBHOOK_PUBLIC_KEY` in `.env.local` and Vercel.
+
 ## 0. Bugs and gaps found in the current code
 
 Read on 13 Oct 2026. These come before new features because several of them break PRD acceptance criteria.
