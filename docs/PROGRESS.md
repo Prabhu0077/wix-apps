@@ -1,3 +1,5 @@
+> **History (June 2026), not current.** Current progress: `CHANGELOG.md` (root) and the Progress section of `docs/02_reviews_mvp_tasks.md`. Some steps below (OAuth install route, Postmark, 5-minute cron) no longer apply.
+
 # Progress & Action Plan — Wix Reviews App
 
 _Last updated: 2026-06-13_

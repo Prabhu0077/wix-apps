@@ -6,7 +6,7 @@
 >
 > **Size:** S ≈ half a day, M ≈ 1–2 days, L ≈ 3–5 days (estimates).
 >
-> **Rule for everyone:** no push to GitHub until the MVP is finished (founder rule, 13 Oct). Work on local branches; commit often.
+> **Rule for everyone:** commit often on branches; push only with the founder's OK. (The 13 Oct "no push until the MVP is finished" rule was lifted on 14 Oct; see `docs/decisions.md`.)
 
 ---
 
