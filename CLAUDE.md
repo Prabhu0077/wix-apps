@@ -1,3 +1,5 @@
+@AGENTS.md
+
 # CLAUDE.md
 
 This file is a pointer. The full project context lives in [`AGENTS.md`](./AGENTS.md) — the universal agent-context file that Claude Code, OpenAI Codex, and Google Antigravity all share.
