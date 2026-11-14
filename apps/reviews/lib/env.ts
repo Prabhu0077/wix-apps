@@ -25,7 +25,11 @@ const envSchema = z.object({
   R2_PUBLIC_BASE_URL:   z.string().url().optional(),
 
   // Email. Optional so the app (widget, form, dashboard) still runs when email
-  // is not set up yet; sending checks for them and fails with a clear error.
+  // is not set up yet; sending fails with a clear error (lib/email/transport.ts).
+  // ZeptoMail (Zoho) is used when its token is set, otherwise Resend.
+  ZEPTOMAIL_TOKEN:     z.string().min(1).optional(),
+  ZEPTOMAIL_API_URL:   z.string().url().optional(),
+  EMAIL_FROM_ADDRESS:  z.string().email().optional(),
   RESEND_API_KEY:      z.string().min(1).optional(),
   RESEND_FROM_ADDRESS: z.string().email().optional(),
 
@@ -66,10 +70,3 @@ export const env: Env = new Proxy({} as Env, {
   },
 });
 
-/** Throws a clear error when email sending is not configured. */
-export function emailConfig(): { apiKey: string; from: string } {
-  if (!env.RESEND_API_KEY || !env.RESEND_FROM_ADDRESS) {
-    throw new Error("Email is not configured: set RESEND_API_KEY and RESEND_FROM_ADDRESS");
-  }
-  return { apiKey: env.RESEND_API_KEY, from: env.RESEND_FROM_ADDRESS };
-}

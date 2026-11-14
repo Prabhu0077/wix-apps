@@ -2,10 +2,8 @@
 // single reminder). Shared by the daily cron and the "send me a test email"
 // button so both use exactly the same wording and headers.
 
-import { Resend } from "resend";
-
 import { accounts } from "@/lib/db";
-import { emailConfig, env } from "@/lib/env";
+import { env } from "@/lib/env";
 import { hasFeature } from "@/lib/features";
 import { readSettings } from "@/lib/settings";
 import { getStoreProfile } from "@/lib/store-profile";
@@ -13,16 +11,11 @@ import { getProductSummaries } from "@/lib/wix/catalog";
 import { getWixClient } from "@/lib/wix/service";
 
 import { renderReviewRequestEmail } from "./review-request";
+import { sendEmail } from "./transport";
 
 type AccountRow = typeof accounts.$inferSelect;
 
 export type EmailKind = "request" | "reminder";
-
-let client: Resend | null = null;
-export function resend(): Resend {
-  client ??= new Resend(emailConfig().apiKey);
-  return client;
-}
 
 /** Coupon percent to promise in the email, or null (plan or setting off). */
 export function couponPercentFor(account: Pick<AccountRow, "plan" | "settings">): number | null {
@@ -46,7 +39,7 @@ async function productNamesFor(account: AccountRow, productIds: string[]): Promi
 /**
  * Send one review request email. `token` is the request's public token
  * ("demo" for a test email, which opens a form that saves nothing).
- * Throws if Resend refuses, so the caller can count the attempt.
+ * Throws if the email service refuses, so the caller can count the attempt.
  */
 export async function sendReviewEmail(opts: {
   account: AccountRow;
@@ -76,8 +69,8 @@ export async function sendReviewEmail(opts: {
     couponPercent: couponPercentFor(account),
   });
 
-  const result = await resend().emails.send({
-    from: `${settings.fromName} <${emailConfig().from}>`,
+  await sendEmail({
+    fromName: settings.fromName,
     to,
     subject: opts.test ? `[Test] ${subject}` : subject,
     html,
@@ -89,5 +82,4 @@ export async function sendReviewEmail(opts: {
       "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
     },
   });
-  if (result.error) throw new Error(result.error.message);
 }

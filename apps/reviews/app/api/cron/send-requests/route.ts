@@ -14,8 +14,9 @@ import { and, desc, eq, gt, gte, inArray, isNull, lte, ne, sql } from "drizzle-o
 import { readMetaTime, touchMeta } from "@/lib/account-meta";
 import { db, accounts, reviewRequests, reviews } from "@/lib/db";
 import { digestAddress, renderDigestEmail } from "@/lib/email/digest";
-import { resend, sendReviewEmail } from "@/lib/email/send";
-import { emailConfig, env } from "@/lib/env";
+import { sendReviewEmail } from "@/lib/email/send";
+import { sendEmail } from "@/lib/email/transport";
+import { env } from "@/lib/env";
 import { hasFeature, REMINDER_AFTER_DAYS } from "@/lib/features";
 import { REVIEW_LINK_DAYS } from "@/lib/product";
 import { readSettings } from "@/lib/settings";
@@ -179,14 +180,13 @@ async function sendDigest(account: AccountRow, now: Date): Promise<boolean> {
 
   // Recorded first, so a failed send never repeats the same reviews tomorrow.
   await touchMeta(account, "lastDigestAt", 0);
-  const result = await resend().emails.send({
-    from: `Product Reviews <${emailConfig().from}>`,
+  await sendEmail({
+    fromName: "Product Reviews",
     to,
     subject,
     html,
     text,
   });
-  if (result.error) throw new Error(result.error.message);
   return true;
 }
 
