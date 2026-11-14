@@ -10,6 +10,12 @@
 
 ---
 
+## 2026-11-15 — Storefront elements blank on a live Wix site (CORS preflight)
+
+On the published store the custom elements loaded but showed nothing, with no error from our code: the Wix SDK's `fetchWithAuth` adds `x-wix-linguist` (and may add other headers), and `/api/widget/instance` only allowed `Authorization, Content-Type`, so the browser blocked the preflight. The Editor preview and our own `/widget` pages looked fine, which hid it. The OPTIONS handler now echoes `Access-Control-Request-Headers` (no cookies are used). Check the browser console on the live site after any change to the element. *(Hit by: Claude, 2026-11-15.)*
+
+---
+
 ## 2026-11-15 — Registering storefront extensions and running the live test
 
 Site Plugin and Site Widget (Custom Element) forms in the Wix app dashboard refuse to save ("Complete the required fields") until the Action bar has a **Settings panel URL** (we serve `/panel`) and the Market listing has an **icon**; widgets also need a default width and height and, when shown in the Add Elements panel, a **preview image**. Turn on "Enable frontend modules from the Wix JavaScript SDK" on widgets (our element uses `site.auth()`); the plugin form has no such switch. "Test App → Test on dev site" needs a Wix dev site; to install on the existing test store use `https://www.wix.com/installer/install?appId=<appId>&metaSiteId=<siteId>`. A manual order in the store dashboard needs the business country set in Business Info. With "Add this plugin automatically" on, the Editor adds the plugins on first open. *(Hit by: Claude, 2026-11-15.)*
