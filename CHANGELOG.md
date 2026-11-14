@@ -9,6 +9,7 @@ Versions: the app is `@wix-apps/reviews` 0.0.1 in `package.json`; the version na
 
 ## 15 Nov 2026 — deployed to production (Vercel, from `master`)
 
+- Live test on the test store: extensions registered (plugins Product Reviews + Rating Badge on the product page, widgets Reviews Carousel + All Reviews); install webhook created the account; a fulfilled manual order scheduled a review request (signed webhook accepted); review form saved a review; dashboard publish and reply work; `/widget` and `/widget/badge` show it. Email failed: Resend says the production API key is invalid. Added `/panel` (Editor settings panel Wix requires for plugins).
 - PR #1 merged into `master` (merge commit `1a4e275`); production `reviews-ten-liard.vercel.app` serves this code (Vercel Git deploy). Public endpoints smoke-tested; not yet run on a live Wix store.
 - Fix: `next build` no longer needs runtime secrets (env checked on first use, database client created on first use); `RESEND_*` optional, sending fails with a clear "Email is not configured" error. `vercel.json` pins the build command to `pnpm build` (Vercel's auto-detected `turbo run build` failed).
 

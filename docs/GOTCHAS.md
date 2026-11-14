@@ -10,6 +10,12 @@
 
 ---
 
+## 2026-11-15 — Registering storefront extensions and running the live test
+
+Site Plugin and Site Widget (Custom Element) forms in the Wix app dashboard refuse to save ("Complete the required fields") until the Action bar has a **Settings panel URL** (we serve `/panel`) and the Market listing has an **icon**; widgets also need a default width and height and, when shown in the Add Elements panel, a **preview image**. Turn on "Enable frontend modules from the Wix JavaScript SDK" on widgets (our element uses `site.auth()`); the plugin form has no such switch. "Test App → Test on dev site" needs a Wix dev site; to install on the existing test store use `https://www.wix.com/installer/install?appId=<appId>&metaSiteId=<siteId>`. A manual order in the store dashboard needs the business country set in Business Info. With "Add this plugin automatically" on, the Editor adds the plugins on first open. *(Hit by: Claude, 2026-11-15.)*
+
+---
+
 ## 2026-11-15 — `next build` imports every route: no env checks at import
 
 Next collects page data by importing each route, so `lib/env.ts` parsing `process.env` at import (and `lib/db.ts` calling `neon()` at import) made the build fail whenever a runtime secret was missing or empty (e.g. `RESEND_API_KEY=` locally, or Turborepo's strict env mode on Vercel). Both are now lazy Proxies; empty strings count as unset. Keep any new client (Resend, R2, Twilio) lazy too. Vercel auto-detects Turborepo and runs `turbo run build`; `apps/reviews/vercel.json` pins `pnpm build`. *(Hit by: Claude, 2026-11-15.)*
