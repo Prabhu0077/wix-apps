@@ -7,6 +7,11 @@ Versions: the app is `@wix-apps/reviews` 0.0.1 in `package.json`; the version na
 
 ---
 
+## 15 Nov 2026 — deployed to production (Vercel, from `master`)
+
+- PR #1 merged into `master` (merge commit `1a4e275`); production `reviews-ten-liard.vercel.app` serves this code (Vercel Git deploy). Public endpoints smoke-tested; not yet run on a live Wix store.
+- Fix: `next build` no longer needs runtime secrets (env checked on first use, database client created on first use); `RESEND_*` optional, sending fails with a clear "Email is not configured" error. `vercel.json` pins the build command to `pnpm build` (Vercel's auto-detected `turbo run build` failed).
+
 ## Unreleased — 0.1.0 "Product Reviews MVP" (branch `feat/mvp-revamp`, 13–15 Oct 2026)
 
 Pre-launch. Not deployed from this branch yet; not run on a live Wix store.
