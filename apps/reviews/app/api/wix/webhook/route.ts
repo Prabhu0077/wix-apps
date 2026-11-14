@@ -1,141 +1,127 @@
-// Wix webhook fanout. All Wix-triggered events land here.
-//
-// Contract: respond <1s. Validate signature → enqueue work → return 200.
-// Heavy work (sending email, fetching from Wix APIs, transcoding) goes to a
-// worker, never inline here.
+// All Wix webhooks land here.
+// Contract: verify → answer 200 fast (Wix waits ~1.25 s) → do work in after().
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { and, eq } from "drizzle-orm";
-import { db, accounts, reviewRequests } from "@/lib/db";
-import { getWixClient } from "@/lib/wix/service";
-import { after } from "next/server";
 
-import {
-  parseWixWebhookPayload,
-  verifyWixWebhookSignature,
-} from "@/lib/wix/webhooks";
+import { db, accounts, reviewRequests } from "@/lib/db";
+import { alreadyRequested, scheduleForOrder, type OrderLike } from "@/lib/schedule";
+import { touchMeta } from "@/lib/account-meta";
+import { readSettings } from "@/lib/settings";
+import { currentPlan } from "@/lib/usage";
+import { verifyWixWebhook, type WixEvent } from "@/lib/wix/webhooks";
+import { ensureAccount } from "@/lib/wix/account";
+import { getWixClient } from "@/lib/wix/service";
 
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
-  const rawBody = await req.text();
-  const signature = req.headers.get("digest");
-
-  const valid = await verifyWixWebhookSignature(rawBody, signature);
-  if (!valid) {
+  const webhook = await verifyWixWebhook(await req.text());
+  if (!webhook) {
     return NextResponse.json({ error: "invalid_signature" }, { status: 401 });
   }
 
-  let payload;
-  try {
-    payload = parseWixWebhookPayload(rawBody);
-  } catch (err) {
-    console.error("[webhook] invalid payload", err);
-    return NextResponse.json({ error: "invalid_payload" }, { status: 400 });
+  const { instanceId, event } = webhook;
+
+  // App lifecycle events have a plain eventType and no entityFqdn.
+  // Names per Wix's App Instance webhooks; confirm with a real uninstall on
+  // the test store (logged below) before launch.
+  if (webhook.eventType === "AppRemoved") {
+    after(() => markUninstalled(instanceId));
+    return NextResponse.json({ ok: true });
+  }
+  if (webhook.eventType === "AppInstalled") {
+    after(() => onInstalled(instanceId));
+    return NextResponse.json({ ok: true });
   }
 
-  // Fan out by event slug.
-  switch (`${payload.entityFqdn}#${payload.slug}`) {
-    case "wix.ecom.v1.order#approved":
-      after(async () => {
-        await handleOrderFulfilled(payload.instanceId, payload.entityId);
-      });
-      break;
+  const kind = `${event.entityFqdn ?? ""}#${event.slug ?? ""}`;
 
-    case "wix.ecom.v1.order#payment_status_updated":
-      console.log("[webhook] payment status updated", payload.entityId);
+  switch (kind) {
+    // "Order Fulfilled" fires on any fulfilment-status change, including back
+    // to not fulfilled — only act when the order is now FULFILLED.
+    case "wix.ecom.v1.order#fulfilled":
+      after(() => handleOrderFulfilled(instanceId, event));
       break;
-
-    case "wix.app-market.v1.app-instance#installed":
-      console.log("[webhook] app instance installed", payload.entityId);
-      break;
-
-    case "wix.app-market.v1.app-instance#removed":
-      console.log("[webhook] app instance removed", payload.entityId);
-      break;
-
     default:
-      console.warn("[webhook] unhandled event", payload.entityFqdn, payload.slug);
-      break;
+      console.log("[webhook] ignored", webhook.eventType, kind);
   }
 
   return NextResponse.json({ ok: true });
 }
 
-// Not exported — Next.js App Router rejects non-HTTP named exports from route files.
-async function handleOrderFulfilled(wixInstanceId: string, orderId: string) {
+// Not exported — App Router route files may only export HTTP handlers.
+
+// Uninstall: stop all outgoing email at once, drop the Wix tokens (they no
+// longer work and shouldn't be kept), and start the 30-day deletion clock.
+// Reviews stay until the purge job runs, so a quick reinstall loses nothing.
+async function markUninstalled(wixInstanceId: string) {
   try {
-    console.log(`[webhook] processing order fulfilled for instance: ${wixInstanceId}, order: ${orderId}`);
+    const [account] = await db
+      .update(accounts)
+      .set({ uninstalledAt: new Date(), wixAccessToken: null, wixTokenExpiresAt: null })
+      .where(eq(accounts.wixInstanceId, wixInstanceId))
+      .returning({ id: accounts.id });
+    if (!account) return;
+    await db
+      .update(reviewRequests)
+      .set({ status: "SKIPPED", skipReason: "uninstalled" })
+      .where(and(eq(reviewRequests.accountId, account.id), eq(reviewRequests.status, "SCHEDULED")));
+    console.log(`[webhook] app removed from instance ${wixInstanceId}; data deleted in 30 days`);
+  } catch (err) {
+    console.error(`[webhook] failed to mark instance ${wixInstanceId} uninstalled`, err);
+  }
+}
 
-    const account = await db.query.accounts.findFirst({
-      where: eq(accounts.wixInstanceId, wixInstanceId),
-    });
+// Install (new apps have no install redirect; this webhook is how we learn
+// about a new store). A reinstall keeps the same instance ID, so this also
+// cancels the deletion clock.
+async function onInstalled(wixInstanceId: string) {
+  try {
+    const account = await ensureAccount(wixInstanceId);
+    console.log(`[webhook] app installed on instance ${wixInstanceId}: ${account ? "account ready" : "account not created"}`);
+  } catch (err) {
+    console.error(`[webhook] install handling failed for ${wixInstanceId}`, err);
+  }
+}
+async function handleOrderFulfilled(wixInstanceId: string, event: WixEvent) {
+  const body = (event.actionEvent?.body ?? {}) as { order?: OrderLike; newFulfillmentStatus?: string };
+  const orderId = body.order?.id ?? event.entityId;
+  if (!orderId) return;
 
+  const status = body.newFulfillmentStatus ?? body.order?.fulfillmentStatus;
+  if (status !== "FULFILLED") {
+    console.log(`[webhook] order ${orderId} is ${status ?? "unknown"}, not scheduling`);
+    return;
+  }
+
+  try {
+    const account = await db.query.accounts.findFirst({ where: eq(accounts.wixInstanceId, wixInstanceId) });
     if (!account) {
-      console.error(`[webhook] Account not found for Wix Instance ID: ${wixInstanceId}`);
+      console.error(`[webhook] no account for instance ${wixInstanceId}`);
       return;
     }
+    if (account.uninstalledAt) return; // late event after uninstall
+    await touchMeta(account, "lastWebhookAt", 60 * 60 * 1000); // for the health check
 
-    const existingRequest = await db.query.reviewRequests.findFirst({
-      where: and(
-        eq(reviewRequests.accountId, account.id),
-        eq(reviewRequests.wixOrderId, orderId)
-      ),
-    });
+    if (await alreadyRequested(account.id, orderId)) return; // Wix may deliver an event twice.
 
-    if (existingRequest) {
-      console.log(`[webhook] ReviewRequest already exists for order ${orderId}, skipping.`);
-      return;
+    // Prefer the order in the event; fetch it only if the event was trimmed.
+    let order: OrderLike | undefined = body.order;
+    if (!order?.lineItems?.length || !order.buyerInfo?.email) {
+      const client = await getWixClient(wixInstanceId);
+      order = (await client.get<{ order: OrderLike }>(`https://www.wixapis.com/ecom/v1/orders/${orderId}`))?.order;
     }
 
-    const wixClient = await getWixClient(wixInstanceId);
-
-    console.log(`[webhook] fetching order details for order ${orderId}`);
-    const orderRes = await wixClient.get<{ order: any }>(
-      `https://www.wixapis.com/ecom/v1/orders/${orderId}`
+    const plan = await currentPlan(account);
+    const delayDays = readSettings(account.settings).emailDelayDays;
+    const result = await scheduleForOrder(
+      account,
+      plan,
+      { ...(order ?? {}), id: orderId },
+      new Date(Date.now() + delayDays * 24 * 60 * 60 * 1000),
     );
-
-    const order = orderRes?.order;
-    if (!order) {
-      console.error(`[webhook] order details not found for order: ${orderId}`);
-      return;
-    }
-
-    const customerEmail =
-      order.buyerInfo?.email ||
-      order.billingInfo?.contactDetails?.email ||
-      order.shippingInfo?.deliveries?.[0]?.destination?.contactDetails?.email;
-
-    if (!customerEmail) {
-      console.error(`[webhook] no customer email found for order ${orderId}`);
-      return;
-    }
-
-    const lineItems = order.lineItems || [];
-    const productIds: string[] = lineItems
-      .map((item: any) => item.productId || item.catalogReference?.catalogItemId)
-      .filter((id: string | undefined): id is string => typeof id === "string" && id.length > 0);
-
-    if (productIds.length === 0) {
-      console.warn(`[webhook] no valid products found in order ${orderId}, skipping.`);
-      return;
-    }
-
-    const delayDays = Math.max(1, Math.min(60, Number((account.settings as { emailDelayDays?: number } | null)?.emailDelayDays) || 14));
-    const scheduledFor = new Date(Date.now() + delayDays * 24 * 60 * 60 * 1000);
-
-    await db.insert(reviewRequests).values({
-      accountId: account.id,
-      wixOrderId: orderId,
-      customerEmail,
-      productIds,
-      status: "SCHEDULED",
-      scheduledFor,
-    });
-
-    console.log(
-      `[webhook] scheduled review request for order ${orderId} at ${scheduledFor.toISOString()}`
-    );
+    console.log(`[webhook] order ${orderId}: ${result}${result === "scheduled" ? ` (in ${delayDays} days)` : ""}`);
   } catch (err) {
     console.error(`[webhook] failed to process order ${orderId}`, err);
   }

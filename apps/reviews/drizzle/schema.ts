@@ -4,7 +4,7 @@
 // Convention: shared shell tables (accounts, subscriptions) are extraction
 // candidates for packages/db when app #2 arrives. Reviews-specific tables stay here.
 
-import { text, integer, timestamp, jsonb, index, uniqueIndex, pgSchema } from "drizzle-orm/pg-core";
+import { text, integer, timestamp, jsonb, boolean, index, uniqueIndex, pgSchema } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
 
@@ -12,11 +12,13 @@ export const reviewsSchema = pgSchema("reviews");
 
 // ---------- Enums ----------
 
-export const planEnum          = reviewsSchema.enum("plan",            ["FREE", "PRO", "GROWTH"]);
+// New enum values go at the END: Postgres can only append them cheaply (ALTER TYPE ... ADD VALUE).
+export const planEnum          = reviewsSchema.enum("plan",            ["FREE", "PRO", "GROWTH", "STARTER"]);
 export const subStatusEnum     = reviewsSchema.enum("sub_status",      ["ACTIVE", "PAST_DUE", "CANCELLED"]);
-export const requestStatusEnum = reviewsSchema.enum("request_status",  ["SCHEDULED", "SENT", "OPENED", "COMPLETED", "EXPIRED"]);
+export const requestStatusEnum = reviewsSchema.enum("request_status",  ["SCHEDULED", "SENT", "OPENED", "COMPLETED", "EXPIRED", "FAILED", "SKIPPED"]);
 export const reviewStatusEnum  = reviewsSchema.enum("review_status",   ["PENDING", "APPROVED", "REJECTED", "HIDDEN"]);
 export const mediaKindEnum     = reviewsSchema.enum("media_kind",      ["PHOTO", "VIDEO"]);
+export const reviewSourceEnum  = reviewsSchema.enum("review_source",   ["REQUEST", "IMPORT", "MANUAL"]);
 
 // ---------- Shared shell tables (extraction candidates) ----------
 
@@ -31,6 +33,9 @@ export const accounts = reviewsSchema.table("accounts", {
   wixAccessToken:  text("wix_access_token"),
   wixTokenExpiresAt: timestamp("wix_token_expires_at"),
   settings: jsonb("settings").$type<Record<string, unknown>>().default({}).notNull(),
+  // Set when Wix tells us the app was removed; cleared on reinstall. The
+  // purge job deletes the account (and, by cascade, all its data) 30 days on.
+  uninstalledAt: timestamp("uninstalled_at"),
 });
 
 export const subscriptions = reviewsSchema.table("subscriptions", {
@@ -55,12 +60,20 @@ export const reviewRequests = reviewsSchema.table(
     status:        requestStatusEnum("status").notNull(),
     scheduledFor:  timestamp("scheduled_for").notNull(),
     sentAt:        timestamp("sent_at"),
+    attempts:      integer("attempts").default(0).notNull(),   // send attempts; FAILED after 5
+    lastError:     text("last_error"),
+    // Why a request was not scheduled. Only "monthly_limit" for now.
+    skipReason:    text("skip_reason"),
     publicToken:   text("public_token").unique().notNull().$defaultFn(() => createId()),
+    reminderSentAt: timestamp("reminder_sent_at"),               // Starter+: one reminder after 7 days
+    couponCode:    text("coupon_code"),                          // Starter+: thank-you code given on submit
     createdAt:     timestamp("created_at").defaultNow().notNull(),
   },
   (t) => ({
     byAccountStatus: index("rr_account_status_idx").on(t.accountId, t.status),
     byScheduledFor:  index("rr_scheduled_idx").on(t.scheduledFor),
+    // One request per order per store; makes duplicate webhooks a no-op.
+    onePerOrder:     uniqueIndex("rr_account_order_uq").on(t.accountId, t.wixOrderId),
   }),
 );
 
@@ -78,12 +91,55 @@ export const reviews = reviewsSchema.table(
     status:          reviewStatusEnum("status").notNull(),
     moderationFlags: jsonb("moderation_flags").$type<string[]>().default([]).notNull(),
     reply:           text("reply"),
+    // Verified = submitted through a review-request token tied to a real Wix order.
+    verified:        boolean("verified").default(false).notNull(),
+    source:          reviewSourceEnum("source").default("REQUEST").notNull(),
+    // The reviewer got something for writing it (coupon, gift). Shown on the
+    // review, as the FTC rule and UK DMCC Act require (PRD R12, T10.2).
+    incentivized:    boolean("incentivized").default(false).notNull(),
+    helpfulCount:    integer("helpful_count").default(0).notNull(),
+    // Imports only: a stable key for the source row (Wix review ID, or a hash
+    // of the CSV row), so importing the same file twice adds nothing.
+    sourceRef:       text("source_ref"),
     publishedAt:     timestamp("published_at"),
     createdAt:       timestamp("created_at").defaultNow().notNull(),
   },
   (t) => ({
     byAccountProduct: index("r_account_product_idx").on(t.accountId, t.productId),
     byStatus:         index("r_status_idx").on(t.status),
+    oneImportPerRow:  uniqueIndex("r_account_source_ref_uq").on(t.accountId, t.sourceRef),
+  }),
+);
+
+// Shoppers who asked one store to stop sending review requests (unsubscribe).
+// Only a SHA-256 hash of the lower-cased email is kept: enough to match,
+// not enough to read back. Per store, not global.
+export const emailSuppressions = reviewsSchema.table(
+  "email_suppressions",
+  {
+    id:        text("id").primaryKey().$defaultFn(() => createId()),
+    accountId: text("account_id").references(() => accounts.id, { onDelete: "cascade" }).notNull(),
+    emailHash: text("email_hash").notNull(),
+    source:    text("source").notNull(), // "link" (unsubscribe page) or "one_click" (mail app button)
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => ({
+    onePerEmail: uniqueIndex("es_account_email_uq").on(t.accountId, t.emailHash),
+  }),
+);
+
+// "Was this helpful?" votes. One per voter per review; the voter is a hash
+// of IP + browser, never stored in clear.
+export const reviewVotes = reviewsSchema.table(
+  "review_votes",
+  {
+    id:        text("id").primaryKey().$defaultFn(() => createId()),
+    reviewId:  text("review_id").references(() => reviews.id, { onDelete: "cascade" }).notNull(),
+    voterHash: text("voter_hash").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => ({
+    oneVote: uniqueIndex("rv_review_voter_uq").on(t.reviewId, t.voterHash),
   }),
 );
 

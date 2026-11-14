@@ -1,161 +1,233 @@
-// Cron job: pick up scheduled review requests and send them via Resend.
+// Daily cron (vercel.json, 09:00 UTC) with `Authorization: Bearer <CRON_SECRET>`.
+// Three jobs, in order, each capped so the run stays inside maxDuration:
+//   1. review requests that are due (every plan);
+//   2. the single reminder, 7 days after a request with no review (Starter+);
+//   3. the daily "new reviews" email to the store owner (every plan, opt-out).
 //
-// Vercel invokes this at the schedule defined in vercel.json (every 5 min).
-// For development, hit GET /api/cron/send-requests with the correct bearer token.
-//
-// Security: CRON_SECRET must match the Authorization: Bearer <secret> header.
-// Without this, anyone who discovers the URL can trigger mass emails.
+// A request that fails 5 times is marked FAILED and not retried, so one bad
+// address can't loop forever or burn the email quota. A reminder is tried
+// once: reminderSentAt is set before sending, so a failure never repeats it.
 
 import { NextRequest, NextResponse } from "next/server";
-import { and, eq, lte } from "drizzle-orm";
-import { Resend } from "resend";
-import * as React from "react";
+import { and, desc, eq, gt, gte, inArray, isNull, lte, ne, sql } from "drizzle-orm";
 
-import { db, accounts, reviewRequests } from "@/lib/db";
-import { env } from "@/lib/env";
-import { getWixClient } from "@/lib/wix/service";
-import { ReviewRequestEmail } from "@/lib/email/review-request";
+import { readMetaTime, touchMeta } from "@/lib/account-meta";
+import { db, accounts, reviewRequests, reviews } from "@/lib/db";
+import { digestAddress, renderDigestEmail } from "@/lib/email/digest";
+import { resend, sendReviewEmail } from "@/lib/email/send";
+import { emailConfig, env } from "@/lib/env";
+import { hasFeature, REMINDER_AFTER_DAYS } from "@/lib/features";
+import { REVIEW_LINK_DAYS } from "@/lib/product";
+import { readSettings } from "@/lib/settings";
+import { getStoreProfile } from "@/lib/store-profile";
+import { isSuppressed } from "@/lib/suppression";
 
 export const runtime = "nodejs";
-export const maxDuration = 60; // Vercel Pro function timeout
+export const maxDuration = 60;
 
-const BATCH_SIZE = 50; // max emails per cron run to stay inside rate limits
+const BATCH_SIZE = 50;
+const MAX_ATTEMPTS = 5;
+const DAY = 24 * 60 * 60 * 1000;
+const DIGEST_BATCH = 100;
 
-export async function GET(req: NextRequest) {
-  // Verify cron secret
-  const auth = req.headers.get("authorization");
-  const expected = `Bearer ${env.CRON_SECRET}`;
-  if (!auth || auth !== expected) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
+type AccountRow = typeof accounts.$inferSelect;
 
-  const resend = new Resend(env.RESEND_API_KEY);
-  const now = new Date();
-
-  // Fetch up to BATCH_SIZE due requests
+async function sendDue(now: Date) {
   const due = await db.query.reviewRequests.findMany({
-    where: and(
-      eq(reviewRequests.status, "SCHEDULED"),
-      lte(reviewRequests.scheduledFor, now),
-    ),
+    where: and(eq(reviewRequests.status, "SCHEDULED"), lte(reviewRequests.scheduledFor, now)),
     limit: BATCH_SIZE,
   });
 
-  if (due.length === 0) {
-    return NextResponse.json({ sent: 0, message: "nothing due" });
-  }
-
   let sent = 0;
   let failed = 0;
-  const errors: { id: string; error: string }[] = [];
+  let skipped = 0;
 
   for (const request of due) {
     try {
-      // Fetch account to get store name + Wix tokens for product lookups
-      const account = await db.query.accounts.findFirst({
-        where: eq(accounts.id, request.accountId),
-      });
-      if (!account) {
-        throw new Error(`Account ${request.accountId} not found`);
+      const account = await db.query.accounts.findFirst({ where: eq(accounts.id, request.accountId) });
+      if (!account) throw new Error(`account ${request.accountId} not found`);
+      if (account.uninstalledAt) {
+        await db
+          .update(reviewRequests)
+          .set({ status: "SKIPPED", skipReason: "uninstalled" })
+          .where(eq(reviewRequests.id, request.id));
+        skipped++;
+        continue;
       }
 
-      // Try to fetch product names from Wix. Fail gracefully — send email even
-      // if product names can't be retrieved.
-      let products: { id: string; name: string }[] = (request.productIds as string[]).map(
-        (id) => ({ id, name: "your recent purchase" }),
-      );
-
-      try {
-        const wixClient = await getWixClient(account.wixInstanceId);
-        const productIds = request.productIds as string[];
-        const resolved: { id: string; name: string }[] = [];
-        for (const pid of productIds) {
-          const res = await wixClient.get<{ product?: { name?: string } }>(
-            `https://www.wixapis.com/stores/v1/products/${pid}`,
-          );
-          resolved.push({ id: pid, name: res?.product?.name ?? "your item" });
-        }
-        if (resolved.length > 0) products = resolved;
-      } catch (wixErr) {
-        console.warn(`[cron] could not fetch product names for request ${request.id}:`, wixErr);
+      // The shopper may have unsubscribed after this request was scheduled.
+      if (await isSuppressed(account.id, request.customerEmail)) {
+        await db
+          .update(reviewRequests)
+          .set({ status: "SKIPPED", skipReason: "unsubscribed" })
+          .where(eq(reviewRequests.id, request.id));
+        skipped++;
+        continue;
       }
 
-      // Build the public review URL
-      const reviewUrl = `${env.NEXT_PUBLIC_APP_BASE_URL}/review/${request.publicToken}`;
-
-      // Render HTML from the React email component
-      const html = renderEmailToHtml({
-        customerName: request.customerEmail.split("@")[0], // fallback name
-        products,
-        reviewUrl,
-        storeName: account.ownerEmail.split("@")[1] ?? "Our Store",
-      });
-
-      // Send via Resend
-      await resend.emails.send({
-        from: env.RESEND_FROM_ADDRESS,
+      await sendReviewEmail({
+        account,
         to: request.customerEmail,
-        subject: "How was your order? Share your review!",
-        html,
+        token: request.publicToken,
+        productIds: request.productIds as string[],
+        kind: "request",
       });
 
-      // Mark as SENT
       await db
         .update(reviewRequests)
-        .set({ status: "SENT", sentAt: new Date() })
+        .set({ status: "SENT", sentAt: new Date(), attempts: request.attempts + 1, lastError: null })
         .where(eq(reviewRequests.id, request.id));
-
       sent++;
     } catch (err) {
-      console.error(`[cron] failed to send review request ${request.id}:`, err);
       failed++;
-      errors.push({ id: request.id, error: String(err) });
-      // Don't mark as failed — it'll be picked up next run.
+      const attempts = request.attempts + 1;
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[cron] send failed for ${request.id} (attempt ${attempts}):`, message);
+      await db
+        .update(reviewRequests)
+        .set({
+          attempts,
+          lastError: message.slice(0, 500),
+          ...(attempts >= MAX_ATTEMPTS ? { status: "FAILED" as const } : {}),
+        })
+        .where(eq(reviewRequests.id, request.id));
     }
   }
-
-  console.log(`[cron] send-requests complete: ${sent} sent, ${failed} failed`);
-  return NextResponse.json({ sent, failed, errors });
+  return { due: due.length, sent, failed, skipped };
 }
 
-/** Minimal server-side HTML render without react-dom/server (edge-friendly). */
-function renderEmailToHtml(props: {
-  customerName: string;
-  products: { id: string; name: string }[];
-  reviewUrl: string;
-  storeName: string;
-}): string {
-  // We render the JSX to a string manually to avoid importing react-dom/server
-  // in an edge-compatible way. For richer templates, swap in @react-email/render.
-  const productListItems = props.products
-    .map((p) => `<li style="font-size:15px;line-height:1.8;color:#444">${escHtml(p.name)}</li>`)
-    .join("");
+async function sendReminders(now: Date) {
+  // Sent 7+ days ago, no review yet, no reminder yet, link still valid with
+  // a week to spare, paid plan, store still installed.
+  const rows = await db
+    .select({ request: reviewRequests, account: accounts })
+    .from(reviewRequests)
+    .innerJoin(accounts, eq(accounts.id, reviewRequests.accountId))
+    .where(
+      and(
+        inArray(reviewRequests.status, ["SENT", "OPENED"]),
+        isNull(reviewRequests.reminderSentAt),
+        lte(reviewRequests.sentAt, new Date(now.getTime() - REMINDER_AFTER_DAYS * DAY)),
+        gte(reviewRequests.createdAt, new Date(now.getTime() - (REVIEW_LINK_DAYS - 7) * DAY)),
+        ne(accounts.plan, "FREE"),
+        isNull(accounts.uninstalledAt),
+      ),
+    )
+    .limit(BATCH_SIZE);
 
-  return `<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><title>How was your order?</title></head>
-<body style="font-family:Arial,sans-serif;color:#333;margin:0;padding:0;background:#f9f9f9">
-<div style="max-width:600px;margin:40px auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)">
-  <div style="background:#1a1a2e;padding:32px 40px;text-align:center">
-    <h1 style="color:#fff;margin:0;font-size:24px">${escHtml(props.storeName)}</h1>
-  </div>
-  <div style="padding:40px 40px 24px">
-    <h2 style="font-size:22px;margin-top:0">Hi ${escHtml(props.customerName)}, how was your order?</h2>
-    <p style="font-size:16px;line-height:1.6;color:#555">We hope you&apos;re enjoying your recent purchase! We&apos;d love to hear what you think.</p>
-    ${props.products.length > 0 ? `<ul style="padding-left:20px;margin-bottom:24px">${productListItems}</ul>` : ""}
-    <div style="text-align:center;margin:32px 0">
-      <a href="${escHtml(props.reviewUrl)}" style="display:inline-block;background:#4f46e5;color:#fff;padding:14px 32px;border-radius:6px;font-size:16px;font-weight:bold;text-decoration:none">Write a Review</a>
-    </div>
-    <p style="font-size:13px;color:#aaa;text-align:center">This link is personal to you and expires in 30 days.</p>
-  </div>
-  <div style="background:#f3f3f3;padding:20px 40px;text-align:center">
-    <p style="font-size:12px;color:#aaa;margin:0">You received this because you placed an order.</p>
-  </div>
-</div>
-</body>
-</html>`;
+  let reminded = 0;
+  let reminderFailed = 0;
+  for (const { request, account } of rows) {
+    if (!hasFeature(account.plan, "reminder") || !readSettings(account.settings).reminderEnabled) continue;
+    // Claim first: a reminder is never sent twice, even if this run fails.
+    const claimed = await db
+      .update(reviewRequests)
+      .set({ reminderSentAt: now })
+      .where(and(eq(reviewRequests.id, request.id), isNull(reviewRequests.reminderSentAt)))
+      .returning({ id: reviewRequests.id });
+    if (claimed.length === 0) continue;
+    if (await isSuppressed(account.id, request.customerEmail)) continue;
+    try {
+      await sendReviewEmail({
+        account,
+        to: request.customerEmail,
+        token: request.publicToken,
+        productIds: request.productIds as string[],
+        kind: "reminder",
+      });
+      reminded++;
+    } catch (err) {
+      reminderFailed++;
+      console.error(`[cron] reminder failed for ${request.id}:`, err instanceof Error ? err.message : err);
+    }
+  }
+  return { reminded, reminderFailed };
 }
 
-function escHtml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+async function sendDigest(account: AccountRow, now: Date): Promise<boolean> {
+  const to = digestAddress(account.ownerEmail);
+  if (!to || !readSettings(account.settings).notifyNewReviews) return false;
+  const since = readMetaTime(account.settings, "lastDigestAt") ?? new Date(now.getTime() - DAY);
+
+  // Imported reviews are left out: one import must not flood the inbox.
+  const fresh = and(eq(reviews.accountId, account.id), gt(reviews.createdAt, since), ne(reviews.source, "IMPORT"));
+  const [counts] = await db
+    .select({
+      total: sql<number>`count(*)`,
+      pending: sql<number>`count(*) filter (where ${reviews.status} = 'PENDING')`,
+    })
+    .from(reviews)
+    .where(fresh);
+  const total = Number(counts?.total ?? 0);
+  if (total === 0) return false;
+
+  const latest = await db
+    .select({ customerName: reviews.customerName, rating: reviews.rating, body: reviews.body, status: reviews.status })
+    .from(reviews)
+    .where(fresh)
+    .orderBy(desc(reviews.createdAt))
+    .limit(5);
+
+  const profile = await getStoreProfile(account);
+  const { subject, html, text } = renderDigestEmail({
+    storeName: profile.storeName ?? "your store",
+    total,
+    pending: Number(counts?.pending ?? 0),
+    latest,
+    manageUrl: `https://manage.wix.com/dashboard/${account.siteId}/app/${env.WIX_APP_ID}`,
+  });
+
+  // Recorded first, so a failed send never repeats the same reviews tomorrow.
+  await touchMeta(account, "lastDigestAt", 0);
+  const result = await resend().emails.send({
+    from: `Product Reviews <${emailConfig().from}>`,
+    to,
+    subject,
+    html,
+    text,
+  });
+  if (result.error) throw new Error(result.error.message);
+  return true;
+}
+
+async function sendDigests(now: Date) {
+  // Only stores with a new non-imported review in the last day are candidates.
+  const ids = await db
+    .selectDistinct({ accountId: reviews.accountId })
+    .from(reviews)
+    .where(and(gt(reviews.createdAt, new Date(now.getTime() - DAY)), ne(reviews.source, "IMPORT")))
+    .limit(DIGEST_BATCH);
+  if (ids.length === 0) return { digests: 0, digestFailed: 0 };
+
+  const list = await db.query.accounts.findMany({
+    where: and(
+      inArray(
+        accounts.id,
+        ids.map((r) => r.accountId),
+      ),
+      isNull(accounts.uninstalledAt),
+    ),
+  });
+  let digests = 0;
+  let digestFailed = 0;
+  for (const account of list) {
+    try {
+      if (await sendDigest(account, now)) digests++;
+    } catch (err) {
+      digestFailed++;
+      console.error(`[cron] digest failed for ${account.id}:`, err instanceof Error ? err.message : err);
+    }
+  }
+  return { digests, digestFailed };
+}
+
+export async function GET(req: NextRequest) {
+  if (req.headers.get("authorization") !== `Bearer ${env.CRON_SECRET}`) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+  const now = new Date();
+  const requests = await sendDue(now);
+  const reminders = await sendReminders(now);
+  const digests = await sendDigests(now);
+  return NextResponse.json({ ...requests, ...reminders, ...digests });
 }

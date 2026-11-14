@@ -1,0 +1,21 @@
+{
+  "id": "evt-test-0001",
+  "entityFqdn": "wix.ecom.v1.order",
+  "slug": "fulfilled",
+  "entityId": "test-order-0001",
+  "eventTime": "2026-10-13T10:00:00.000Z",
+  "actionEvent": {
+    "body": {
+      "newFulfillmentStatus": "FULFILLED",
+      "order": {
+        "id": "test-order-0001",
+        "fulfillmentStatus": "FULFILLED",
+        "buyerInfo": { "email": "shopper@example.com" },
+        "lineItems": [
+          { "catalogReference": { "catalogItemId": "product-id-1" } },
+          { "catalogReference": { "catalogItemId": "product-id-2" } }
+        ]
+      }
+    }
+  }
+}

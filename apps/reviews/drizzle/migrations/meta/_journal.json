@@ -15,6 +15,48 @@
       "when": 1779447622291,
       "tag": "0001_bitter_purifiers",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791908309671,
+      "tag": "0002_verified_source_attempts",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791909971299,
+      "tag": "0003_plan_limits",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791912539501,
+      "tag": "0004_email_suppressions",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791913688257,
+      "tag": "0005_uninstall_purge",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791916666152,
+      "tag": "0006_incentive_source_ref",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791954085622,
+      "tag": "0007_helpful_reminder_coupon",
+      "breakpoints": true
     }
   ]
 }

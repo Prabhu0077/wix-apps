@@ -1,3 +1,5 @@
+> **History (June 2026), not current.** Current progress: `CHANGELOG.md` (root) and the Progress section of `docs/02_reviews_mvp_tasks.md`. Some steps below (OAuth install route, Postmark, 5-minute cron) no longer apply.
+
 # Progress & Action Plan — Wix Reviews App
 
 _Last updated: 2026-06-13_
@@ -79,3 +81,4 @@ DNS records for `vibcoders.com` need to be added to Vercel DNS so Resend can ver
 ## 🗝️ Key credentials location
 
 `C:\Users\prabh\.wix-creds\wix_reviews_credentials.json` — master key file, gitignored, outside repo.
+- 2026-11-14 · Vercel project `reviews` connected to GitHub `Prabhu0077/wix-apps` (Root Directory `apps/reviews`, production branch `master`); local `master` fast-forwarded to `feat/mvp-revamp` (5f19b9b); push did not go out: GitHub asked this PC to sign in again · Next: founder signs in to GitHub once on the PC, then push `feat/mvp-revamp` and `master` (deploys production), register extensions, live test · Blocked: founder's GitHub sign-in
