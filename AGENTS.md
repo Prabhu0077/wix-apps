@@ -62,7 +62,7 @@ If you think an abstraction is worth extracting before app #2 exists, **stop and
 | ORM | Drizzle + drizzle-kit | Never Prisma |
 | Wix auth | OAuth client credentials (App ID + secret → token per site, encrypted) | Installs arrive by the App Installed webhook |
 | Storefront | Custom elements (`public/elements/reviews.js`, built by esbuild) loading `/widget*` pages | New Wix apps can't use iframe widgets |
-| Email | Resend | Sending domain moves to bodhamlabs.com before launch |
+| Email | Zoho ZeptoMail (Resend fallback), `lib/email/transport.ts` | Sending domain bodhamlabs.com |
 | Media | Cloudflare R2, signed URLs | Not switched on yet |
 | Hosting + jobs | Vercel; two daily Vercel crons (`apps/reviews/vercel.json`) | Project `reviews`, team "prabhu0077's projects" |
 | SMS, observability | Planned (Growth plan; Sentry / PostHog later) | Not in use; `twilio` is still a dependency |

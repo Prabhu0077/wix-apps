@@ -9,6 +9,7 @@ Versions: the app is `@wix-apps/reviews` 0.0.1 in `package.json`; the version na
 
 ## 15 Nov 2026 — deployed to production (Vercel, from `master`)
 
+- Email can go through Zoho ZeptoMail (`ZEPTOMAIL_TOKEN`, `ZEPTOMAIL_API_URL`, `EMAIL_FROM_ADDRESS`); Resend stays as the fallback (933482d).
 - Store published; on the live product page the rating badge and reviews section show the test review and reply, after fixing a CORS preflight that blocked the element's store lookup (f5fb8d3).
 - Live test on the test store: extensions registered (plugins Product Reviews + Rating Badge on the product page, widgets Reviews Carousel + All Reviews); install webhook created the account; a fulfilled manual order scheduled a review request (signed webhook accepted); review form saved a review; dashboard publish and reply work; `/widget` and `/widget/badge` show it. Email failed: Resend says the production API key is invalid. Added `/panel` (Editor settings panel Wix requires for plugins).
 - PR #1 merged into `master` (merge commit `1a4e275`); production `reviews-ten-liard.vercel.app` serves this code (Vercel Git deploy). Public endpoints smoke-tested; not yet run on a live Wix store.

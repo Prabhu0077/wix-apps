@@ -15,6 +15,7 @@
 
 | Date | Decision | Why | By | Status |
 |---|---|---|---|---|
+| 2026-11-15 | Email = **Zoho ZeptoMail** (Resend kept as fallback in code) | Company mail is already on Zoho; production Resend key was invalid; one provider for the bodhamlabs.com domain | Founder | Active — founder sets up ZeptoMail and the Vercel vars |
 | 2026-10-14 | Free plan stays generous (spam check, owner digest, star filter, helpful votes, badge, import/export); paid plans get features that cost us per use or are clear growth tools | Free plan is the install engine on the App Market; Fera has no free plan | Founder | Active |
 | 2026-10-14 | Plan ladder Free 50 / Starter $9 300 / Pro $29 1,500 / Growth $79 10,000 requests per month; feature gates in `lib/features.ts` | More requests per dollar than Fera at every tier | Founder | Active — Revisit after 50 paying stores |
 | 2026-10-14 | Plan page shows "(coming soon)" next to anything not built; never sell a feature that does not exist | Honest-claims rule | Founder | Active |
@@ -41,7 +42,7 @@
 |---|---|---|---|---|
 | 2026-10-14 | Deploy through **GitHub → Vercel Git integration**: Root Directory `apps/reviews`, Production Branch `master` | Vercel CLI not logged in on the PC; every deploy then matches a commit | Founder (on MD's recommendation) | Active — waiting for the founder to connect Git in Vercel |
 | 2026-10-13 | Two daily Vercel crons: send requests (+ reminders, owner digest) 09:00 UTC; purge uninstalled 03:30 UTC | Vercel Hobby allows daily crons; no extra worker | MD | Active — Revisit if hourly sending is needed |
-| 2026-05-22 | Email = **Resend** (was Postmark) | Postmark restricted our domain | Founder | Active — sending domain moves from vibcoders.com to bodhamlabs.com before launch |
+| 2026-05-22 | Email = **Resend** (was Postmark) | Postmark restricted our domain | Founder | Changed (see 2026-11-15 ZeptoMail) — sending domain moves from vibcoders.com to bodhamlabs.com before launch |
 | 2026-05-22 | OAuth tokens encrypted with AES-256-GCM (`WIX_TOKENS_MASTER_KEY`); webhook work runs after the response with Next.js `after()` | Tokens safe at rest; Wix needs a reply in under 1 s | MD | Active |
 | 2026-05-22 | `docs/GOTCHAS.md`: read before work, add an entry after any non-obvious fix | Stops agents re-learning the same traps | Founder | Active |
 | 2026-05-21 | Monorepo: pnpm workspaces + Turborepo; `packages/` stays empty until app #2 needs the same code | Avoid premature abstraction | Founder | Active |
