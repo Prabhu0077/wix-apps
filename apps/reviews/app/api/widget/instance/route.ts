@@ -28,8 +28,13 @@ const cache = new Map<string, { instanceId: string; at: number }>();
 const TTL_MS = 10 * 60 * 1000;
 const MAX_ENTRIES = 5000;
 
-export async function OPTIONS() {
-  return new Response(null, { status: 204, headers: CORS });
+// The Wix SDK's fetchWithAuth adds its own headers (e.g. x-wix-linguist) and
+// may add more later, so the preflight allows whatever it asks for. Safe:
+// no cookies are used (Allow-Origin is *), only the Authorization token.
+export async function OPTIONS(req: NextRequest) {
+  const asked = req.headers.get("access-control-request-headers");
+  const headers = asked ? { ...CORS, "Access-Control-Allow-Headers": asked } : CORS;
+  return new Response(null, { status: 204, headers });
 }
 
 export async function GET(req: NextRequest) {
