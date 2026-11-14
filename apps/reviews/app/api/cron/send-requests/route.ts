@@ -15,7 +15,7 @@ import { readMetaTime, touchMeta } from "@/lib/account-meta";
 import { db, accounts, reviewRequests, reviews } from "@/lib/db";
 import { digestAddress, renderDigestEmail } from "@/lib/email/digest";
 import { resend, sendReviewEmail } from "@/lib/email/send";
-import { env } from "@/lib/env";
+import { emailConfig, env } from "@/lib/env";
 import { hasFeature, REMINDER_AFTER_DAYS } from "@/lib/features";
 import { REVIEW_LINK_DAYS } from "@/lib/product";
 import { readSettings } from "@/lib/settings";
@@ -180,7 +180,7 @@ async function sendDigest(account: AccountRow, now: Date): Promise<boolean> {
   // Recorded first, so a failed send never repeats the same reviews tomorrow.
   await touchMeta(account, "lastDigestAt", 0);
   const result = await resend().emails.send({
-    from: `Product Reviews <${env.RESEND_FROM_ADDRESS}>`,
+    from: `Product Reviews <${emailConfig().from}>`,
     to,
     subject,
     html,

@@ -5,7 +5,7 @@
 import { Resend } from "resend";
 
 import { accounts } from "@/lib/db";
-import { env } from "@/lib/env";
+import { emailConfig, env } from "@/lib/env";
 import { hasFeature } from "@/lib/features";
 import { readSettings } from "@/lib/settings";
 import { getStoreProfile } from "@/lib/store-profile";
@@ -20,7 +20,7 @@ export type EmailKind = "request" | "reminder";
 
 let client: Resend | null = null;
 export function resend(): Resend {
-  client ??= new Resend(env.RESEND_API_KEY);
+  client ??= new Resend(emailConfig().apiKey);
   return client;
 }
 
@@ -77,7 +77,7 @@ export async function sendReviewEmail(opts: {
   });
 
   const result = await resend().emails.send({
-    from: `${settings.fromName} <${env.RESEND_FROM_ADDRESS}>`,
+    from: `${settings.fromName} <${emailConfig().from}>`,
     to,
     subject: opts.test ? `[Test] ${subject}` : subject,
     html,

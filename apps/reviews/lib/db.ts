@@ -11,10 +11,21 @@ import { neon } from "@neondatabase/serverless";
 import { env } from "./env";
 import * as schema from "../drizzle/schema";
 
-const sql = neon(env.DATABASE_URL);
+function makeDb() {
+  return drizzle(neon(env.DATABASE_URL), { schema });
+}
+export type DB = ReturnType<typeof makeDb>;
 
-export const db = drizzle(sql, { schema });
-export type DB = typeof db;
+// Created on first use, so importing this module (e.g. during `next build`)
+// needs no DATABASE_URL.
+let instance: DB | null = null;
+export const db: DB = new Proxy({} as DB, {
+  get(_t, key) {
+    instance ??= makeDb();
+    const value = Reflect.get(instance, key, instance);
+    return typeof value === "function" ? value.bind(instance) : value;
+  },
+});
 
 // Re-export schema for convenience: `import { db, accounts } from "@/lib/db"`
 export * from "../drizzle/schema";
